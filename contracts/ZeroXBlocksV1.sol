@@ -264,7 +264,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             swapping = false;
         }
         super._transfer(sender, address(this), nodePrice);
-        nodeRewardManager.createNode(sender, name);
+        nodeRewardManager.createNode(sender, name, ContractType.Fine);
     }
 
     function cashoutReward(uint256 blocktime) public {

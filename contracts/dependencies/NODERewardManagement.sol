@@ -3,6 +3,12 @@ pragma solidity ^0.8.0;
 
 import "../libraries/IterableMapping.sol";
 
+enum ContractType {
+    Fine,
+    Mean,
+    Finest
+}
+
 contract NODERewardManagement {
     using IterableMapping for IterableMapping.Map;
 
@@ -11,6 +17,7 @@ contract NODERewardManagement {
         uint256 creationTime;
         uint256 lastClaimTime;
         uint256 rewardAvailable;
+        ContractType cType;
     }
 
     IterableMapping.Map private nodeOwners;
@@ -110,14 +117,29 @@ contract NODERewardManagement {
         return (iterations, claims, lastIndexProcessed);
     }
 
-    function createNode(address account, string memory nodeName) external onlySentry {
-        require(isNameAvailable(account, nodeName), "CREATE NODE: Name not available");
+    function createNode(
+        address account,
+        string memory nodeName,
+        ContractType _cType
+    ) external onlySentry {
+        require(isNameAvailable(account, nodeName), "CREATE NODE: Name not available.");
+
+        _nodesOfUser[account];
+
+        if (_nodesOfUser[account].length > 0) {
+            require(
+                _cType == _nodesOfUser[account][0].cType,
+                "CREATE NODE: Contract type of new node must be the same of current nodes."
+            );
+        }
+
         _nodesOfUser[account].push(
             NodeEntity({
                 name: nodeName,
                 creationTime: block.timestamp,
                 lastClaimTime: block.timestamp,
-                rewardAvailable: rewardPerNode
+                rewardAvailable: rewardPerNode,
+                cType: _cType
             })
         );
         nodeOwners.set(account, _nodesOfUser[account].length);
@@ -148,7 +170,7 @@ contract NODERewardManagement {
         returns (NodeEntity storage)
     {
         uint256 numberOfNodes = nodes.length;
-        require(numberOfNodes > 0, "CASHOUT ERROR: You don't have nodes to cash-out");
+        require(numberOfNodes > 0, "CASHOUT ERROR: You don't have nodes to cash-out.");
         bool found = false;
         int256 index = binarySearch(nodes, 0, numberOfNodes, _creationTime);
         uint256 validIndex;
@@ -156,7 +178,7 @@ contract NODERewardManagement {
             found = true;
             validIndex = uint256(index);
         }
-        require(found, "NODE SEARCH: No NODE Found with this blocktime");
+        require(found, "NODE SEARCH: No NODE Found with this blocktime.");
         return nodes[validIndex];
     }
 
@@ -165,19 +187,18 @@ contract NODERewardManagement {
         uint256 low,
         uint256 high,
         uint256 x
-    ) private view returns (int256) {
-        if (high >= low) {
-            uint256 mid = (high + low) / (2);
-            if (arr[mid].creationTime == x) {
-                return int256(mid);
-            } else if (arr[mid].creationTime > x) {
-                return binarySearch(arr, low, mid - 1, x);
+    ) private pure returns (int256) {
+        uint256 _h = high;
+        uint256 _l = low;
+        while (_h > _l) {
+            uint256 mid = (high + low) / 2;
+            if (arr[mid].creationTime < x) {
+                _l = mid + 1;
             } else {
-                return binarySearch(arr, mid + 1, high, x);
+                _h = mid;
             }
-        } else {
-            return -1;
         }
+        return ((arr[_l].creationTime == x) ? int256(_l) : int256(-1));
     }
 
     function _cashoutNodeReward(address account, uint256 _creationTime) external onlySentry returns (uint256) {
@@ -194,7 +215,7 @@ contract NODERewardManagement {
     function _cashoutAllNodesReward(address account) external onlySentry returns (uint256) {
         NodeEntity[] storage nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
-        require(nodesCount > 0, "NODE: CREATIME must be higher than zero");
+        require(nodesCount > 0, "CASHOUT ERROR: You don't have nodes to cash-out");
         NodeEntity storage _node;
         uint256 rewardsTotal = 0;
         for (uint256 i = 0; i < nodesCount; i++) {
@@ -287,7 +308,7 @@ contract NODERewardManagement {
     }
 
     function _getNodesLastClaimTime(address account) external view returns (string memory) {
-        require(isNodeOwner(account), "LAST CLAIME TIME: NO NODE OWNER");
+        require(isNodeOwner(account), "LAST CLAIM TIME: NO NODE OWNER");
         NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
         NodeEntity memory _node;
