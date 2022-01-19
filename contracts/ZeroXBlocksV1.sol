@@ -225,7 +225,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         );
     }
 
-    function createNodeWithTokens(string memory name) public {
+    function createNodeWithTokens(string memory name, ContractType cType) public {
         require(
             bytes(name).length > 3 && bytes(name).length < 33,
             "NODE CREATION: node name must be between 4 and 32 characters"
@@ -237,7 +237,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             sender != futureUsePool && sender != distributionPool,
             "NODE CREATION: future and reward pools cannot create node"
         );
-        uint256 nodePrice = nodeRewardManager.nodePrice();
+        uint256 nodePrice = nodeRewardManager.nodePrice(cType);
         require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
         uint256 contractTokenBalance = balanceOf(address(this));
         bool swapAmountOk = contractTokenBalance >= swapTokensAmount;
@@ -264,7 +264,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             swapping = false;
         }
         super._transfer(sender, address(this), nodePrice);
-        nodeRewardManager.createNode(sender, name, ContractType.Fine);
+        nodeRewardManager.createNode(sender, name, cType);
     }
 
     function cashoutReward(uint256 blocktime) public {
@@ -335,20 +335,20 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager._getRewardAmountOf(_msgSender());
     }
 
-    function changeNodePrice(uint256 newNodePrice) public onlyOwner {
-        nodeRewardManager._changeNodePrice(newNodePrice);
+    function changeNodePrice(ContractType cType, uint256 newNodePrice) public onlyOwner {
+        nodeRewardManager._changeNodePrice(cType, newNodePrice);
     }
 
-    function getNodePrice() public view returns (uint256) {
-        return nodeRewardManager.nodePrice();
+    function getNodePrice(ContractType cType) public view returns (uint256) {
+        return nodeRewardManager.nodePrice(cType);
     }
 
-    function changeRewardPerNode(uint256 newPrice) public onlyOwner {
-        nodeRewardManager._changeRewardPerNode(newPrice);
+    function changeRewardPerNode(ContractType cType, uint256 newPrice) public onlyOwner {
+        nodeRewardManager._changeRewardPerNode(cType, newPrice);
     }
 
-    function getRewardPerNode() public view returns (uint256) {
-        return nodeRewardManager.rewardPerNode();
+    function getRewardPerNode(ContractType cType) public view returns (uint256) {
+        return nodeRewardManager.rewardPerNode(cType);
     }
 
     function changeClaimTime(uint256 newTime) public onlyOwner {

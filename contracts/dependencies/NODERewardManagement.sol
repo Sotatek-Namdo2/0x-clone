@@ -23,8 +23,8 @@ contract NODERewardManagement {
     IterableMapping.Map private nodeOwners;
     mapping(address => NodeEntity[]) private _nodesOfUser;
 
-    uint256 public nodePrice;
-    uint256 public rewardPerNode;
+    mapping(ContractType => uint256) public nodePrice;
+    mapping(ContractType => uint256) public rewardPerNode;
     uint256 public claimTime;
 
     address public gateKeeper;
@@ -41,12 +41,20 @@ contract NODERewardManagement {
     uint256 public totalRewardStaked = 0;
 
     constructor(
-        uint256 _nodePrice,
-        uint256 _rewardPerNode,
+        uint256 _nodePriceFine,
+        uint256 _nodePriceMean,
+        uint256 _nodePriceFinest,
+        uint256 _rewardPerNodeFine,
+        uint256 _rewardPerNodeMean,
+        uint256 _rewardPerNodeFinest,
         uint256 _claimTime
     ) {
-        nodePrice = _nodePrice;
-        rewardPerNode = _rewardPerNode;
+        nodePrice[ContractType.Fine] = _nodePriceFine;
+        nodePrice[ContractType.Mean] = _nodePriceMean;
+        nodePrice[ContractType.Finest] = _nodePriceFinest;
+        rewardPerNode[ContractType.Fine] = _rewardPerNodeFine;
+        rewardPerNode[ContractType.Mean] = _rewardPerNodeMean;
+        rewardPerNode[ContractType.Finest] = _rewardPerNodeFinest;
         claimTime = _claimTime;
         gateKeeper = msg.sender;
     }
@@ -126,7 +134,7 @@ contract NODERewardManagement {
 
         _nodesOfUser[account];
 
-        if (_nodesOfUser[account].length > 0) {
+        if (isNodeOwner(account)) {
             require(
                 _cType == _nodesOfUser[account][0].cType,
                 "CREATE NODE: Contract type of new node must be the same of current nodes."
@@ -138,14 +146,14 @@ contract NODERewardManagement {
                 name: nodeName,
                 creationTime: block.timestamp,
                 lastClaimTime: block.timestamp,
-                rewardAvailable: rewardPerNode,
+                rewardAvailable: rewardPerNode[_cType],
                 cType: _cType
             })
         );
         nodeOwners.set(account, _nodesOfUser[account].length);
         totalNodesCreated++;
         if (autoDistribute && !distribution) {
-            distributeRewards(gasForDistribution, rewardPerNode);
+            distributeRewards(gasForDistribution, rewardPerNode[_cType]);
         }
     }
 
@@ -228,6 +236,14 @@ contract NODERewardManagement {
 
     function claimable(NodeEntity memory node) private view returns (bool) {
         return node.lastClaimTime + claimTime <= block.timestamp;
+    }
+
+    function _getTierOfAccount(address account) external view returns (ContractType) {
+        require(isNodeOwner(account), "GET REWARD OF: NO NODE OWNER");
+        NodeEntity[] storage nodes = _nodesOfUser[account];
+        ContractType res = nodes[0].cType;
+
+        return res;
     }
 
     function _getRewardAmountOf(address account) external view returns (uint256) {
@@ -345,12 +361,12 @@ contract NODERewardManagement {
         return string(bstr);
     }
 
-    function _changeNodePrice(uint256 newNodePrice) external onlySentry {
-        nodePrice = newNodePrice;
+    function _changeNodePrice(ContractType _cType, uint256 newNodePrice) external onlySentry {
+        nodePrice[_cType] = newNodePrice;
     }
 
-    function _changeRewardPerNode(uint256 newPrice) external onlySentry {
-        rewardPerNode = newPrice;
+    function _changeRewardPerNode(ContractType _cType, uint256 newPrice) external onlySentry {
+        rewardPerNode[_cType] = newPrice;
     }
 
     function _changeClaimTime(uint256 newTime) external onlySentry {
@@ -386,6 +402,6 @@ contract NODERewardManagement {
             uint256
         )
     {
-        return distributeRewards(gasForDistribution, rewardPerNode);
+        return distributeRewards(gasForDistribution, rewardPerNode[ContractType.Fine]);
     }
 }
