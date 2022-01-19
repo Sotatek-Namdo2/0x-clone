@@ -403,22 +403,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager._getNodesLastClaimTime(_msgSender());
     }
 
-    function distributeRewards()
-        public
-        onlyOwner
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
-        return nodeRewardManager._distributeRewards();
-    }
-
-    function publicDistributeRewards() public {
-        nodeRewardManager._distributeRewards();
-    }
-
     function getTotalStakedReward() public view returns (uint256) {
         return nodeRewardManager.totalRewardStaked();
     }
