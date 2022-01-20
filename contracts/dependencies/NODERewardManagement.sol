@@ -151,7 +151,20 @@ contract NODERewardManagement {
             "ERROR: No changes made"
         );
 
-        // TODO: distributeUnclaimed();
+        // TODO: resolve gas problem when scaling up;
+        for (uint256 i = 0; i < nodeOwners.size(); i++) {
+            address account = nodeOwners.getKeyAtIndex(i);
+
+            NodeEntity[] storage nodes = _nodesOfUser[account];
+            uint256 nodesCount = nodes.length;
+            for (uint256 j = 0; j < nodesCount; j++) {
+                NodeEntity storage node = nodes[j];
+                uint256 reward = nodeTotalReward(account, j);
+                node.lastUpdateTime = block.timestamp;
+
+                node.unclaimedReward += reward;
+            }
+        }
         rewardAPYPerNode[ContractType.Square] = newRewardAPYPerNode[ContractType.Square];
         rewardAPYPerNode[ContractType.Cube] = newRewardAPYPerNode[ContractType.Cube];
         rewardAPYPerNode[ContractType.Teseract] = newRewardAPYPerNode[ContractType.Teseract];
@@ -185,20 +198,14 @@ contract NODERewardManagement {
         return rewardCount;
     }
 
-    function _getRewardAmountOf(address account, uint256 _creationTime) external view returns (uint256) {
+    function _getRewardAmountOf(address account, uint256 _nodeIndex) external view returns (uint256) {
         require(isNodeOwner(account), "GET REWARD OF: NO NODE OWNER");
-
-        require(_creationTime > 0, "NODE: CREATIME must be higher than zero");
         NodeEntity[] storage nodes = _nodesOfUser[account];
         uint256 numberOfNodes = nodes.length;
-        require(numberOfNodes > 0, "CASHOUT ERROR: You don't have nodes to cash-out");
-        NodeEntity storage node = _getNodeWithCreatime(nodes, _creationTime);
+        require(_nodeIndex >= 0 && _nodeIndex < numberOfNodes, "NODE: Node index is improper");
+        NodeEntity storage node = nodes[_nodeIndex];
         uint256 rewardNode = node.unclaimedReward;
         return rewardNode;
-    }
-
-    function _getNodeRewardAmountOf(address account, uint256 creationTime) external view returns (uint256) {
-        return _getNodeWithCreatime(_nodesOfUser[account], creationTime).unclaimedReward;
     }
 
     function _getNodesNames(address account) external view returns (string memory) {
@@ -282,53 +289,6 @@ contract NODERewardManagement {
         uint256 rewardAPY = rewardAPYPerNode[node.cType];
         uint256 result = (rewardAPY / UNIX_YEAR) * delta;
         return result;
-    }
-
-    // function isNameAvailable(address account, string memory nodeName) private view returns (bool) {
-    //     NodeEntity[] memory nodes = _nodesOfUser[account];
-    //     for (uint256 i = 0; i < nodes.length; i++) {
-    //         if (keccak256(bytes(nodes[i].name)) == keccak256(bytes(nodeName))) {
-    //             return false;
-    //         }
-    //     }
-    //     return true;
-    // }
-
-    function _getNodeWithCreatime(NodeEntity[] storage nodes, uint256 _creationTime)
-        private
-        view
-        returns (NodeEntity storage)
-    {
-        uint256 numberOfNodes = nodes.length;
-        require(numberOfNodes > 0, "CASHOUT ERROR: You don't have nodes to cash-out.");
-        bool found = false;
-        int256 index = binarySearch(nodes, 0, numberOfNodes, _creationTime);
-        uint256 validIndex;
-        if (index >= 0) {
-            found = true;
-            validIndex = uint256(index);
-        }
-        require(found, "NODE SEARCH: No NODE Found with this blocktime.");
-        return nodes[validIndex];
-    }
-
-    function binarySearch(
-        NodeEntity[] memory arr,
-        uint256 low,
-        uint256 high,
-        uint256 x
-    ) private pure returns (int256) {
-        uint256 _h = high;
-        uint256 _l = low;
-        while (_h > _l) {
-            uint256 mid = (high + low) / 2;
-            if (arr[mid].creationTime < x) {
-                _l = mid + 1;
-            } else {
-                _h = mid;
-            }
-        }
-        return ((arr[_l].creationTime == x) ? int256(_l) : int256(-1));
     }
 
     function claimable(NodeEntity memory node) private view returns (bool) {
