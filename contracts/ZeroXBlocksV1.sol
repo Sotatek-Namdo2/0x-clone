@@ -110,7 +110,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         swapTokensAmount = newVal;
     }
 
-    function updateFuturWall(address payable wall) external onlyOwner {
+    function updateFutureWall(address payable wall) external onlyOwner {
         futureUsePool = wall;
     }
 
@@ -244,9 +244,9 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         if (swapAmountOk && swapLiquify && !swapping && sender != owner() && !automatedMarketMakerPairs[sender]) {
             swapping = true;
 
-            uint256 futurTokens = (contractTokenBalance * (futureFee)) / (100);
+            uint256 futureTokens = (contractTokenBalance * (futureFee)) / (100);
 
-            swapAndSendToFee(futureUsePool, futurTokens);
+            swapAndSendToFee(futureUsePool, futureTokens);
 
             uint256 rewardsPoolTokens = (contractTokenBalance * (rewardsFee)) / (100);
 
@@ -265,6 +265,53 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         }
         super._transfer(sender, address(this), nodePrice);
         nodeRewardManager.createNode(sender, name, cType);
+    }
+
+    function createMultipleNodesWithTokens(string[] memory names, ContractType cType) public {
+        for (uint256 i = 0; i < names.length; i++) {
+            require(
+                bytes(names[i]).length > 3 && bytes(names[i]).length < 33,
+                "NODE CREATION: node name must be between 4 and 32 characters"
+            );
+        }
+
+        address sender = _msgSender();
+        require(sender != address(0), "NODE CREATION: creation from the zero address");
+        require(!_isBlacklisted[sender], "NODE CREATION: this address has been blacklisted");
+        require(
+            sender != futureUsePool && sender != distributionPool,
+            "NODE CREATION: future and reward pools cannot create node"
+        );
+        uint256 nodePrice = nodeRewardManager.nodePrice(cType);
+        require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
+        uint256 contractTokenBalance = balanceOf(address(this));
+        bool swapAmountOk = contractTokenBalance >= swapTokensAmount;
+        if (swapAmountOk && swapLiquify && !swapping && sender != owner() && !automatedMarketMakerPairs[sender]) {
+            swapping = true;
+
+            uint256 futureTokens = (contractTokenBalance * (futureFee)) / (100);
+
+            swapAndSendToFee(futureUsePool, futureTokens);
+
+            uint256 rewardsPoolTokens = (contractTokenBalance * (rewardsFee)) / (100);
+
+            uint256 rewardsTokenstoSwap = (rewardsPoolTokens * (rwSwap)) / (100);
+
+            swapAndSendToFee(distributionPool, rewardsTokenstoSwap);
+            super._transfer(address(this), distributionPool, rewardsPoolTokens - (rewardsTokenstoSwap));
+
+            uint256 swapTokens = (contractTokenBalance * (liquidityPoolFee)) / (100);
+
+            swapAndLiquify(swapTokens);
+
+            swapTokensForEth(balanceOf(address(this)));
+
+            swapping = false;
+        }
+        super._transfer(sender, address(this), nodePrice);
+        for (uint256 i = 0; i < names.length; i++) {
+            nodeRewardManager.createNode(sender, names[i], cType);
+        }
     }
 
     function cashoutReward(uint256 _nodeIndex) public {

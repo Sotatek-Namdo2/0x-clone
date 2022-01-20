@@ -30,6 +30,7 @@ contract NODERewardManagement {
 
     mapping(ContractType => uint256) public nodePrice;
     mapping(ContractType => uint256) public rewardAPYPerNode;
+    mapping(ContractType => uint256) public newRewardAPYPerNode;
     uint256 public claimTime;
 
     address public admin0XB;
@@ -56,6 +57,9 @@ contract NODERewardManagement {
         rewardAPYPerNode[ContractType.Square] = _rewardAPYPerNodeSquare;
         rewardAPYPerNode[ContractType.Cube] = _rewardAPYPerNodeCube;
         rewardAPYPerNode[ContractType.Teseract] = _rewardAPYPerNodeTeseract;
+        newRewardAPYPerNode[ContractType.Square] = _rewardAPYPerNodeSquare;
+        newRewardAPYPerNode[ContractType.Cube] = _rewardAPYPerNodeCube;
+        newRewardAPYPerNode[ContractType.Teseract] = _rewardAPYPerNodeTeseract;
         claimTime = _claimTime;
         admin0XB = msg.sender;
     }
@@ -76,8 +80,6 @@ contract NODERewardManagement {
         string memory nodeName,
         ContractType _cType
     ) external onlySentry {
-        require(isNameAvailable(account, nodeName), "CREATE NODE: Name not available.");
-
         _nodesOfUser[account];
 
         if (isNodeOwner(account)) {
@@ -92,7 +94,7 @@ contract NODERewardManagement {
                 name: nodeName,
                 creationTime: block.timestamp,
                 lastUpdateTime: block.timestamp,
-                unclaimedReward: rewardAPYPerNode[_cType],
+                unclaimedReward: 0,
                 cType: _cType
             })
         );
@@ -130,7 +132,7 @@ contract NODERewardManagement {
     }
 
     function _changeRewardAPYPerNode(ContractType _cType, uint256 newPrice) external onlySentry {
-        rewardAPYPerNode[_cType] = newPrice;
+        newRewardAPYPerNode[_cType] = newPrice;
     }
 
     function _changeClaimTime(uint256 newTime) external onlySentry {
@@ -139,6 +141,20 @@ contract NODERewardManagement {
 
     function _changeAutoDistribute(bool newMode) external onlySentry {
         autoDistribute = newMode;
+    }
+
+    function _confirmRewardUpdates() external onlySentry {
+        require(
+            rewardAPYPerNode[ContractType.Square] != newRewardAPYPerNode[ContractType.Square] ||
+                rewardAPYPerNode[ContractType.Cube] != newRewardAPYPerNode[ContractType.Cube] ||
+                rewardAPYPerNode[ContractType.Teseract] != newRewardAPYPerNode[ContractType.Teseract],
+            "ERROR: No changes made"
+        );
+
+        // TODO: distributeUnclaimed();
+        rewardAPYPerNode[ContractType.Square] = newRewardAPYPerNode[ContractType.Square];
+        rewardAPYPerNode[ContractType.Cube] = newRewardAPYPerNode[ContractType.Cube];
+        rewardAPYPerNode[ContractType.Teseract] = newRewardAPYPerNode[ContractType.Teseract];
     }
 
     // -------------- External READ functions --------------
@@ -163,7 +179,7 @@ contract NODERewardManagement {
         nodesCount = nodes.length;
 
         for (uint256 i = 0; i < nodesCount; i++) {
-            rewardCount += nodes[i].unclaimedReward + nodeRewardSinceLastUpdate(account, i);
+            rewardCount += nodeTotalReward(account, i);
         }
 
         return rewardCount;
@@ -268,20 +284,15 @@ contract NODERewardManagement {
         return result;
     }
 
-    function isNameAvailable(address account, string memory nodeName) private view returns (bool) {
-        NodeEntity[] memory nodes = _nodesOfUser[account];
-        for (uint256 i = 0; i < nodes.length; i++) {
-            if (keccak256(bytes(nodes[i].name)) == keccak256(bytes(nodeName))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    function _burn(uint256 index) internal {
-        require(index < nodeOwners.size(), "Index Out of Bounds.");
-        nodeOwners.remove(nodeOwners.getKeyAtIndex(index));
-    }
+    // function isNameAvailable(address account, string memory nodeName) private view returns (bool) {
+    //     NodeEntity[] memory nodes = _nodesOfUser[account];
+    //     for (uint256 i = 0; i < nodes.length; i++) {
+    //         if (keccak256(bytes(nodes[i].name)) == keccak256(bytes(nodeName))) {
+    //             return false;
+    //         }
+    //     }
+    //     return true;
+    // }
 
     function _getNodeWithCreatime(NodeEntity[] storage nodes, uint256 _creationTime)
         private
