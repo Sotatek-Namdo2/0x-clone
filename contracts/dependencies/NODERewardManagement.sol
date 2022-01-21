@@ -265,7 +265,7 @@ contract NODERewardManagement {
         require(isNodeOwner(account), "GET REWARD: NO NODE OWNER");
         NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
-        string memory _rewardsAvailable = uint2str(nodes[0].unclaimedReward);
+        string memory _rewardsAvailable = uint2str(nodeTotalReward(account, 0));
         string memory separator = "#";
 
         for (uint256 i = 1; i < nodesCount; i++) {
