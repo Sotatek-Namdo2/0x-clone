@@ -88,3 +88,7 @@ At the moment, deployment is available on Avalanche Fuji Testnet:
 ```sh
 $ yarn hardhat --network fuji deploy
 ```
+
+```sh
+$ yarn hardhat etherscan-verify --api-key 9N3X4BWMBQI9F7N7GQ96V9QIWK9GR3KEYG --network fuji --license MIT
+```

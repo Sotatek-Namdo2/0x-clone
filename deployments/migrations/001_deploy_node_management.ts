@@ -13,12 +13,21 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     return;
   }
 
-  const nodePrice = utils.parseEther("12.5");
-  const rewardPerNode = 3833912037037;
+  const nodePrices = [
+    utils.parseEther("5"), // Square
+    utils.parseEther("10"), // Cube
+    utils.parseEther("30"), // Tesseract
+  ];
+
+  const rewardAPYs = [
+    25000000000000, // Square
+    40000000000000, // Cube
+    50000000000000, // Tesseract
+  ];
   const claimTime = 1;
   await deploy("NODERewardManagement", {
     from: deployer,
-    args: [nodePrice, rewardPerNode, claimTime],
+    args: [nodePrices, rewardAPYs, claimTime],
     log: true,
   });
 };

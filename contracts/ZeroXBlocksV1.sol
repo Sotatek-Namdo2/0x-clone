@@ -13,35 +13,40 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     IJoeRouter02 public uniswapV2Router;
 
+    uint256 public ownedNodesCountLimit = 100;
+
     address public uniswapV2Pair;
     address public futureUsePool;
     address public distributionPool;
 
     address public deadWallet = 0x000000000000000000000000000000000000dEaD;
 
+    // *************** Storage for fees ***************
     uint256 public rewardsFee;
     uint256 public liquidityPoolFee;
     uint256 public futureFee;
     uint256 public totalFees;
-
     uint256 public cashoutFee;
 
+    // *************** Storage for swapping ***************
     uint256 private rwSwap;
     bool private swapping = false;
     bool private swapLiquify = true;
     uint256 public swapTokensAmount;
 
+    // *************** Blacklist storage ***************
     mapping(address => bool) public _isBlacklisted;
+
+    // *************** Market makers pairs ***************
     mapping(address => bool) public automatedMarketMakerPairs;
 
+    // *************** Events ***************
     event UpdateUniswapV2Router(address indexed newAddress, address indexed oldAddress);
-
     event SetAutomatedMarketMakerPair(address indexed pair, bool indexed value);
-
     event LiquidityWalletUpdated(address indexed newLiquidityWallet, address indexed oldLiquidityWallet);
-
     event SwapAndLiquify(uint256 tokensSwapped, uint256 ethReceived, uint256 tokensIntoLiquidity);
 
+    // *************** Constructor ***************
     constructor(
         address[] memory payees,
         uint256[] memory shares,
@@ -91,8 +96,29 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         swapTokensAmount = swapAmount * (10**18);
     }
 
+    // *************** WRITE functions for admin ***************
     function setNodeManagement(address nodeManagement) external onlyOwner {
         nodeRewardManager = NODERewardManagement(nodeManagement);
+    }
+
+    function changeNodePrice(ContractType cType, uint256 newNodePrice) public onlyOwner {
+        nodeRewardManager._changeNodePrice(cType, newNodePrice);
+    }
+
+    function changeRewardAPYPerNode(ContractType cType, uint256 newPrice) public onlyOwner {
+        nodeRewardManager._changeRewardAPYPerNode(cType, newPrice);
+    }
+
+    function changeClaimTime(uint256 newTime) public onlyOwner {
+        nodeRewardManager._changeClaimTime(newTime);
+    }
+
+    function changeAutoDistribution(bool newMode) public onlyOwner {
+        nodeRewardManager._changeAutoDistribute(newMode);
+    }
+
+    function confirmRewardUpdates() public onlyOwner returns (string memory) {
+        return nodeRewardManager._confirmRewardUpdates();
     }
 
     function updateUniswapV2Router(address newAddress) public onlyOwner {
@@ -110,7 +136,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         swapTokensAmount = newVal;
     }
 
-    function updateFuturWall(address payable wall) external onlyOwner {
+    function updateFutureWall(address payable wall) external onlyOwner {
         futureUsePool = wall;
     }
 
@@ -123,7 +149,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         totalFees = rewardsFee + (liquidityPoolFee) + (futureFee);
     }
 
-    function updateLiquiditFee(uint256 value) external onlyOwner {
+    function updateLiquidityFee(uint256 value) external onlyOwner {
         liquidityPoolFee = value;
         totalFees = rewardsFee + (liquidityPoolFee) + (futureFee);
     }
@@ -151,6 +177,16 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         _isBlacklisted[account] = value;
     }
 
+    function boostReward(uint256 amount) public onlyOwner {
+        if (amount > address(this).balance) amount = address(this).balance;
+        payable(owner()).transfer(amount);
+    }
+
+    function changeSwapLiquify(bool newVal) public onlyOwner {
+        swapLiquify = newVal;
+    }
+
+    // *************** Private helpers functions ***************
     function _setAutomatedMarketMakerPair(address pair, bool value) private {
         require(
             automatedMarketMakerPairs[pair] != value,
@@ -168,7 +204,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     ) internal override {
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
-        require(!_isBlacklisted[from] && !_isBlacklisted[to], "THIS ADDRESS HAS BEEN BLACKLISTED!");
+        require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
 
         super._transfer(from, to, amount);
     }
@@ -225,7 +261,8 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         );
     }
 
-    function createNodeWithTokens(string memory name) public {
+    // *************** WRITE functions for public ***************
+    function createNodeWithTokens(string memory name, ContractType cType) public {
         require(
             bytes(name).length > 3 && bytes(name).length < 33,
             "NODE CREATION: node name must be between 4 and 32 characters"
@@ -237,16 +274,19 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             sender != futureUsePool && sender != distributionPool,
             "NODE CREATION: future and reward pools cannot create node"
         );
-        uint256 nodePrice = nodeRewardManager.nodePrice();
+
+        uint256 nodeCount = getNodeNumberOf(sender);
+        require(nodeCount < ownedNodesCountLimit, "NODE CREATION: address reached limit of owned nodes");
+        uint256 nodePrice = nodeRewardManager.nodePrice(cType);
         require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
         uint256 contractTokenBalance = balanceOf(address(this));
-        bool swapAmountOk = contractTokenBalance >= swapTokensAmount;
+        bool swapAmountOk = (contractTokenBalance >= swapTokensAmount);
         if (swapAmountOk && swapLiquify && !swapping && sender != owner() && !automatedMarketMakerPairs[sender]) {
             swapping = true;
 
-            uint256 futurTokens = (contractTokenBalance * (futureFee)) / (100);
+            uint256 futureTokens = (contractTokenBalance * (futureFee)) / (100);
 
-            swapAndSendToFee(futureUsePool, futurTokens);
+            swapAndSendToFee(futureUsePool, futureTokens);
 
             uint256 rewardsPoolTokens = (contractTokenBalance * (rewardsFee)) / (100);
 
@@ -264,10 +304,62 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             swapping = false;
         }
         super._transfer(sender, address(this), nodePrice);
-        nodeRewardManager.createNode(sender, name, ContractType.Fine);
+        nodeRewardManager.createNode(sender, name, cType);
     }
 
-    function cashoutReward(uint256 blocktime) public {
+    function createMultipleNodesWithTokens(string[] memory names, ContractType cType) public {
+        for (uint256 i = 0; i < names.length; i++) {
+            require(
+                bytes(names[i]).length > 3 && bytes(names[i]).length < 33,
+                "NODE CREATION: node name must be between 4 and 32 characters"
+            );
+        }
+
+        address sender = _msgSender();
+        require(sender != address(0), "NODE CREATION: creation from the zero address");
+        require(!_isBlacklisted[sender], "NODE CREATION: this address has been blacklisted");
+        require(
+            sender != futureUsePool && sender != distributionPool,
+            "NODE CREATION: future and reward pools cannot create node"
+        );
+        uint256 nodeCount = getNodeNumberOf(sender);
+        require(
+            nodeCount + names.length <= ownedNodesCountLimit,
+            "NODE CREATION: address reached limit of owned nodes"
+        );
+        uint256 nodePrice = nodeRewardManager.nodePrice(cType);
+        require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
+        uint256 contractTokenBalance = balanceOf(address(this));
+        bool swapAmountOk = contractTokenBalance >= swapTokensAmount;
+        if (swapAmountOk && swapLiquify && !swapping && sender != owner() && !automatedMarketMakerPairs[sender]) {
+            swapping = true;
+
+            uint256 futureTokens = (contractTokenBalance * (futureFee)) / (100);
+
+            swapAndSendToFee(futureUsePool, futureTokens);
+
+            uint256 rewardsPoolTokens = (contractTokenBalance * (rewardsFee)) / (100);
+
+            uint256 rewardsTokenstoSwap = (rewardsPoolTokens * (rwSwap)) / (100);
+
+            swapAndSendToFee(distributionPool, rewardsTokenstoSwap);
+            super._transfer(address(this), distributionPool, rewardsPoolTokens - (rewardsTokenstoSwap));
+
+            uint256 swapTokens = (contractTokenBalance * (liquidityPoolFee)) / (100);
+
+            swapAndLiquify(swapTokens);
+
+            swapTokensForEth(balanceOf(address(this)));
+
+            swapping = false;
+        }
+        super._transfer(sender, address(this), nodePrice);
+        for (uint256 i = 0; i < names.length; i++) {
+            nodeRewardManager.createNode(sender, names[i], cType);
+        }
+    }
+
+    function cashoutReward(uint256 _nodeIndex) public {
         address sender = _msgSender();
         require(sender != address(0), "CSHT: zero address");
         require(!_isBlacklisted[sender], "CSHT: this address has been blacklisted");
@@ -275,7 +367,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             sender != futureUsePool && sender != distributionPool,
             "CSHT: future and reward pools cannot cashout rewards"
         );
-        uint256 rewardAmount = nodeRewardManager._getRewardAmountOf(sender, blocktime);
+        uint256 rewardAmount = nodeRewardManager._getRewardAmountOf(sender, _nodeIndex);
         require(rewardAmount > 0, "CSHT: your reward is not ready yet");
 
         if (swapLiquify) {
@@ -287,7 +379,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             rewardAmount -= feeAmount;
         }
         super._transfer(distributionPool, sender, rewardAmount);
-        nodeRewardManager._cashoutNodeReward(sender, blocktime);
+        nodeRewardManager._cashoutNodeReward(sender, _nodeIndex);
     }
 
     function cashoutAll() public {
@@ -312,15 +404,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         nodeRewardManager._cashoutAllNodesReward(sender);
     }
 
-    function boostReward(uint256 amount) public onlyOwner {
-        if (amount > address(this).balance) amount = address(this).balance;
-        payable(owner()).transfer(amount);
-    }
-
-    function changeSwapLiquify(bool newVal) public onlyOwner {
-        swapLiquify = newVal;
-    }
-
+    // *************** READ function for public ***************
     function getNodeNumberOf(address account) public view returns (uint256) {
         return nodeRewardManager._getNodeNumberOf(account);
     }
@@ -335,48 +419,20 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager._getRewardAmountOf(_msgSender());
     }
 
-    function changeNodePrice(uint256 newNodePrice) public onlyOwner {
-        nodeRewardManager._changeNodePrice(newNodePrice);
+    function getNodePrice(ContractType cType) public view returns (uint256) {
+        return nodeRewardManager.nodePrice(cType);
     }
 
-    function getNodePrice() public view returns (uint256) {
-        return nodeRewardManager.nodePrice();
-    }
-
-    function changeRewardPerNode(uint256 newPrice) public onlyOwner {
-        nodeRewardManager._changeRewardPerNode(newPrice);
-    }
-
-    function getRewardPerNode() public view returns (uint256) {
-        return nodeRewardManager.rewardPerNode();
-    }
-
-    function changeClaimTime(uint256 newTime) public onlyOwner {
-        nodeRewardManager._changeClaimTime(newTime);
+    function getRewardAPYPerNode(ContractType cType) public view returns (uint256) {
+        return nodeRewardManager.rewardAPYPerNode(cType);
     }
 
     function getClaimTime() public view returns (uint256) {
         return nodeRewardManager.claimTime();
     }
 
-    function changeAutoDistribution(bool newMode) public onlyOwner {
-        nodeRewardManager._changeAutoDistribute(newMode);
-    }
-
     function getAutoDistribution() public view returns (bool) {
         return nodeRewardManager.autoDistribute();
-    }
-
-    function changeGasDistribution(uint256 newGasDistri) public onlyOwner {
-        nodeRewardManager._changeGasDistri(newGasDistri);
-    }
-
-    function getGasDistribution() public view returns (uint256) {
-        return nodeRewardManager.gasForDistribution();
-    }
-
-    function getDistributionCount() public view returns (uint256) {
-        return nodeRewardManager.lastDistributionCount();
     }
 
     function getNodesNames() public view returns (string memory) {
@@ -391,39 +447,23 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager._getNodesCreationTime(_msgSender());
     }
 
+    function getNodesTypes() public view returns (string memory) {
+        require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
+        require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");
+        return nodeRewardManager._getNodesCreationTime(_msgSender());
+    }
+
     function getNodesRewards() public view returns (string memory) {
         require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
         require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return nodeRewardManager._getNodesRewardAvailable(_msgSender());
     }
 
-    function getNodesLastClaims() public view returns (string memory) {
-        require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
-        require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return nodeRewardManager._getNodesLastClaimTime(_msgSender());
-    }
-
-    function distributeRewards()
-        public
-        onlyOwner
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
-        return nodeRewardManager._distributeRewards();
-    }
-
-    function publicDistributeRewards() public {
-        nodeRewardManager._distributeRewards();
-    }
-
-    function getTotalStakedReward() public view returns (uint256) {
-        return nodeRewardManager.totalRewardStaked();
-    }
-
     function getTotalCreatedNodes() public view returns (uint256) {
         return nodeRewardManager.totalNodesCreated();
+    }
+
+    function getTotalCreatedNodesPerContractType(ContractType _contractType) public view returns (uint256) {
+        return nodeRewardManager.totalNodesPerContractType(_contractType);
     }
 }
