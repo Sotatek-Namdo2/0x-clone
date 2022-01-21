@@ -1,5 +1,5 @@
 import { Fixture } from "ethereum-waffle";
-import { utils, Wallet } from "ethers";
+import { utils, Wallet, constants } from "ethers";
 import { ethers, waffle } from "hardhat";
 import { abi as JoeFactoryAbi, bytecode as JoeFactoryBytecode } from "./contracts/JoeFactory.json";
 import { abi as JoeRouterAbi, bytecode as JoeRouterBytecode } from "./contracts/JoeRouter02.json";
@@ -118,11 +118,13 @@ describe("0xB", () => {
     await nodeRewardManagement.setToken(zeroXBlocks.address);
     await zeroXBlocks.setNodeManagement(nodeRewardManagement.address);
 
-    await wavax.deposit({ value: utils.parseEther("1") });
+    await wavax.deposit({ value: utils.parseEther("10") });
+    await wavax.approve(joeRouter.address, constants.MaxUint256);
+    await zeroXBlocks.approve(joeRouter.address, constants.MaxUint256);
     // await joeRouter.addLiquidity(
     //   zeroXBlocks.address,
     //   wavax.address,
-    //   utils.parseEther("100"),
+    //   utils.parseEther("1"),
     //   utils.parseEther("1"),
     //   0,
     //   0,
