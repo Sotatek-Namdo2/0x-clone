@@ -82,13 +82,6 @@ contract NODERewardManagement {
     ) external onlySentry {
         _nodesOfUser[account];
 
-        if (isNodeOwner(account)) {
-            require(
-                _cType == _nodesOfUser[account][0].cType,
-                "CREATE NODE: Contract type of new node must be the same of current nodes."
-            );
-        }
-
         _nodesOfUser[account].push(
             NodeEntity({
                 name: nodeName,
@@ -143,12 +136,12 @@ contract NODERewardManagement {
         autoDistribute = newMode;
     }
 
-    function _confirmRewardUpdates() external onlySentry {
+    function _confirmRewardUpdates() external onlySentry returns (string memory) {
         require(
             rewardAPYPerNode[ContractType.Square] != newRewardAPYPerNode[ContractType.Square] ||
                 rewardAPYPerNode[ContractType.Cube] != newRewardAPYPerNode[ContractType.Cube] ||
                 rewardAPYPerNode[ContractType.Teseract] != newRewardAPYPerNode[ContractType.Teseract],
-            "ERROR: No changes made"
+            "CONFIRM RW: No changes made"
         );
 
         // TODO: resolve gas problem when scaling up;
@@ -165,22 +158,39 @@ contract NODERewardManagement {
                 node.unclaimedReward += reward;
             }
         }
-        rewardAPYPerNode[ContractType.Square] = newRewardAPYPerNode[ContractType.Square];
-        rewardAPYPerNode[ContractType.Cube] = newRewardAPYPerNode[ContractType.Cube];
-        rewardAPYPerNode[ContractType.Teseract] = newRewardAPYPerNode[ContractType.Teseract];
+        string memory result = "CHANGES MADE: |";
+        if (rewardAPYPerNode[ContractType.Square] != newRewardAPYPerNode[ContractType.Square]) {
+            rewardAPYPerNode[ContractType.Square] = newRewardAPYPerNode[ContractType.Square];
+            result = string(
+                abi.encodePacked(
+                    "rewardAPYPerNode[Square] <= ",
+                    uint2str(newRewardAPYPerNode[ContractType.Square]),
+                    "|"
+                )
+            );
+        }
+        if (rewardAPYPerNode[ContractType.Cube] != newRewardAPYPerNode[ContractType.Cube]) {
+            rewardAPYPerNode[ContractType.Cube] = newRewardAPYPerNode[ContractType.Cube];
+            result = string(
+                abi.encodePacked("rewardAPYPerNode[Cube] <= ", uint2str(newRewardAPYPerNode[ContractType.Cube]), "|")
+            );
+        }
+        if (rewardAPYPerNode[ContractType.Teseract] != newRewardAPYPerNode[ContractType.Teseract]) {
+            rewardAPYPerNode[ContractType.Teseract] = newRewardAPYPerNode[ContractType.Teseract];
+            result = string(
+                abi.encodePacked(
+                    "rewardAPYPerNode[Teseract] <= ",
+                    uint2str(newRewardAPYPerNode[ContractType.Teseract]),
+                    "|"
+                )
+            );
+        }
+        return result;
     }
 
     // -------------- External READ functions --------------
     function _isNodeOwner(address account) external view returns (bool) {
         return isNodeOwner(account);
-    }
-
-    function _getTierOfAccount(address account) external view returns (ContractType) {
-        require(isNodeOwner(account), "GET REWARD OF: NO NODE OWNER");
-        NodeEntity[] storage nodes = _nodesOfUser[account];
-        ContractType res = nodes[0].cType;
-
-        return res;
     }
 
     function _getRewardAmountOf(address account) external view returns (uint256) {
