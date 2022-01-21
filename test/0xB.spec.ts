@@ -6,14 +6,16 @@ import { abi as JoeRouterAbi, bytecode as JoeRouterBytecode } from "./contracts/
 import { IJoeFactory, IJoeRouter02, NODERewardManagement, WAVAX, ZeroXBlocksV1 } from "../typechain";
 
 describe("0xB", () => {
+  let wallets: Wallet[], deployer: Wallet, distributePool: Wallet;
   let wavax: WAVAX;
   let joeRouter: IJoeRouter02;
+  let zeroXBlocks: ZeroXBlocksV1;
   let nodeRewardManagement: NODERewardManagement;
-  let deployer: Wallet, distributePool: Wallet;
   let loadFixture: ReturnType<typeof waffle.createFixtureLoader>;
 
   before("create fixture loader", async () => {
-    [deployer, distributePool] = await (ethers as any).getSigners();
+    wallets = await (ethers as any).getSigners();
+    [deployer, distributePool] = wallets;
     loadFixture = waffle.createFixtureLoader([deployer as any]);
   });
 
@@ -75,7 +77,7 @@ describe("0xB", () => {
     wavax: WAVAX;
     nodeRewardManagement: NODERewardManagement;
     joeRouter: IJoeRouter02;
-    zeroXBlocksV1: ZeroXBlocksV1;
+    zeroXBlocks: ZeroXBlocksV1;
   }> = async (wallets, provider) => {
     const { wavax, joeRouter } = await traderJoeFixture(wallets, provider);
     const { nodeRewardManagement } = await nodeRewardManagementFixture(wallets, provider);
@@ -103,7 +105,7 @@ describe("0xB", () => {
     const fees = [futureFee, rewardsFee, liquidityPoolFee, cashoutFee, rwSwap];
     const swapAmount = 30;
     const uniV2Router = joeRouter.address;
-    const zeroXBlocksV1 = (await ZeroXBlocksV1.deploy(
+    const zeroXBlocks = (await ZeroXBlocksV1.deploy(
       payees,
       shares,
       addresses,
@@ -113,19 +115,20 @@ describe("0xB", () => {
       uniV2Router,
     )) as ZeroXBlocksV1;
 
-    await nodeRewardManagement.setToken(zeroXBlocksV1.address);
-    await zeroXBlocksV1.setNodeManagement(nodeRewardManagement.address);
+    await nodeRewardManagement.setToken(zeroXBlocks.address);
+    await zeroXBlocks.setNodeManagement(nodeRewardManagement.address);
 
-    return { wavax, nodeRewardManagement, joeRouter, zeroXBlocksV1 };
+    return { wavax, nodeRewardManagement, joeRouter, zeroXBlocks };
   };
 
   beforeEach("deploy LiquidityMathTest", async () => {
-    ({ wavax, nodeRewardManagement } = await loadFixture(completeFixture));
+    ({ wavax, nodeRewardManagement, joeRouter, zeroXBlocks } = await loadFixture(completeFixture));
   });
 
-  describe("#addDelta", () => {
-    it("1 + 0", async () => {
-      console.log(wavax.address);
+  describe("First Blood", () => {
+    it("createMultipleNodesWithTokens", async () => {
+      await zeroXBlocks.transfer(wallets[2].address, utils.parseEther("1000"));
+      await zeroXBlocks.connect(wallets[2]).createMultipleNodesWithTokens(["test"], 0);
     });
   });
 });
