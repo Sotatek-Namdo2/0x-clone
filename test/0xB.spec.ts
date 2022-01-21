@@ -121,16 +121,16 @@ describe("0xB", () => {
     await wavax.deposit({ value: utils.parseEther("10") });
     await wavax.approve(joeRouter.address, constants.MaxUint256);
     await zeroXBlocks.approve(joeRouter.address, constants.MaxUint256);
-    // await joeRouter.addLiquidity(
-    //   zeroXBlocks.address,
-    //   wavax.address,
-    //   utils.parseEther("1"),
-    //   utils.parseEther("1"),
-    //   0,
-    //   0,
-    //   deployer.address,
-    //   Math.floor(Date.now() / 1000) + 86400,
-    // );
+    await joeRouter.addLiquidity(
+      zeroXBlocks.address,
+      wavax.address,
+      utils.parseEther("100"),
+      utils.parseEther("1"),
+      0,
+      0,
+      deployer.address,
+      Math.floor(Date.now() / 1000) + 86400,
+    );
 
     return { wavax, nodeRewardManagement, joeRouter, zeroXBlocks };
   };
@@ -144,7 +144,7 @@ describe("0xB", () => {
       await zeroXBlocks.transfer(wallets[2].address, utils.parseEther("1000"));
 
       await zeroXBlocks.connect(wallets[2]).createNodeWithTokens("test", 2);
-      // await zeroXBlocks.connect(wallets[2]).createNodeWithTokens("test2", 2);
+      await zeroXBlocks.connect(wallets[2]).createNodeWithTokens("test2", 2);
     });
   });
 });
