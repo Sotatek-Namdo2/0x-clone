@@ -118,17 +118,31 @@ describe("0xB", () => {
     await nodeRewardManagement.setToken(zeroXBlocks.address);
     await zeroXBlocks.setNodeManagement(nodeRewardManagement.address);
 
+    await wavax.deposit({ value: utils.parseEther("1") });
+    await joeRouter.addLiquidity(
+      zeroXBlocks.address,
+      wavax.address,
+      utils.parseEther("100"),
+      utils.parseEther("1"),
+      0,
+      0,
+      deployer.address,
+      Math.floor(Date.now() / 1000) + 86400,
+    );
+
     return { wavax, nodeRewardManagement, joeRouter, zeroXBlocks };
   };
 
-  beforeEach("deploy LiquidityMathTest", async () => {
+  beforeEach("deploy", async () => {
     ({ wavax, nodeRewardManagement, joeRouter, zeroXBlocks } = await loadFixture(completeFixture));
   });
 
   describe("First Blood", () => {
-    it("createMultipleNodesWithTokens", async () => {
+    it("createNodeWithTokens", async () => {
       await zeroXBlocks.transfer(wallets[2].address, utils.parseEther("1000"));
-      await zeroXBlocks.connect(wallets[2]).createMultipleNodesWithTokens(["test"], 0);
+
+      await zeroXBlocks.connect(wallets[2]).createNodeWithTokens("test", 2);
+      await zeroXBlocks.connect(wallets[2]).createNodeWithTokens("test2", 2);
     });
   });
 });
