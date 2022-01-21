@@ -447,6 +447,12 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager._getNodesCreationTime(_msgSender());
     }
 
+    function getNodesTypes() public view returns (string memory) {
+        require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
+        require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");
+        return nodeRewardManager._getNodesCreationTime(_msgSender());
+    }
+
     function getNodesRewards() public view returns (string memory) {
         require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
         require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");

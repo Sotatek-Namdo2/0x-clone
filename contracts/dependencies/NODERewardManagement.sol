@@ -241,24 +241,37 @@ contract NODERewardManagement {
 
         for (uint256 i = 1; i < nodesCount; i++) {
             _node = nodes[i];
-
             _creationTimes = string(abi.encodePacked(_creationTimes, separator, uint2str(_node.creationTime)));
         }
         return _creationTimes;
+    }
+
+    function _getNodesTypes(address account) external view returns (string memory) {
+        require(isNodeOwner(account), "GET CREATIME: NO NODE OWNER");
+        NodeEntity[] memory nodes = _nodesOfUser[account];
+        uint256 nodesCount = nodes.length;
+        NodeEntity memory _node;
+        string memory _types = uint2str(uint256(nodes[0].cType));
+        string memory separator = "#";
+
+        for (uint256 i = 1; i < nodesCount; i++) {
+            _node = nodes[i];
+            _types = string(abi.encodePacked(_types, separator, uint2str(uint256(_node.cType))));
+        }
+        return _types;
     }
 
     function _getNodesRewardAvailable(address account) external view returns (string memory) {
         require(isNodeOwner(account), "GET REWARD: NO NODE OWNER");
         NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
-        NodeEntity memory _node;
         string memory _rewardsAvailable = uint2str(nodes[0].unclaimedReward);
         string memory separator = "#";
 
         for (uint256 i = 1; i < nodesCount; i++) {
-            _node = nodes[i];
-
-            _rewardsAvailable = string(abi.encodePacked(_rewardsAvailable, separator, uint2str(_node.unclaimedReward)));
+            _rewardsAvailable = string(
+                abi.encodePacked(_rewardsAvailable, separator, uint2str(nodeTotalReward(account, i)))
+            );
         }
         return _rewardsAvailable;
     }
