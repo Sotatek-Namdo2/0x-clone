@@ -331,7 +331,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
         uint256 contractTokenBalance = balanceOf(address(this));
         bool swapAmountOk = contractTokenBalance >= swapTokensAmount;
-
         if (swapAmountOk && swapLiquify && !swapping && sender != owner() && !automatedMarketMakerPairs[sender]) {
             swapping = true;
 
