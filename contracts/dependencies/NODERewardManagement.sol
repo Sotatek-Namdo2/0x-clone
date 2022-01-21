@@ -6,7 +6,7 @@ import "../libraries/IterableMapping.sol";
 enum ContractType {
     Square,
     Cube,
-    Teseract
+    Tesseract
 }
 
 contract NODERewardManagement {
@@ -40,26 +40,20 @@ contract NODERewardManagement {
     bool public distribution = false;
 
     uint256 public totalNodesCreated = 0;
+    mapping(ContractType => uint256) private _totalNodesPerContractType;
 
     // -------------- Constructor --------------
     constructor(
-        uint256 _nodePriceSquare,
-        uint256 _nodePriceCube,
-        uint256 _nodePriceTeseract,
-        uint256 _rewardAPYPerNodeSquare,
-        uint256 _rewardAPYPerNodeCube,
-        uint256 _rewardAPYPerNodeTeseract,
+        uint256[] memory _nodePrices,
+        uint256[] memory _rewardAPYs,
         uint256 _claimTime
     ) {
-        nodePrice[ContractType.Square] = _nodePriceSquare;
-        nodePrice[ContractType.Cube] = _nodePriceCube;
-        nodePrice[ContractType.Teseract] = _nodePriceTeseract;
-        rewardAPYPerNode[ContractType.Square] = _rewardAPYPerNodeSquare;
-        rewardAPYPerNode[ContractType.Cube] = _rewardAPYPerNodeCube;
-        rewardAPYPerNode[ContractType.Teseract] = _rewardAPYPerNodeTeseract;
-        newRewardAPYPerNode[ContractType.Square] = _rewardAPYPerNodeSquare;
-        newRewardAPYPerNode[ContractType.Cube] = _rewardAPYPerNodeCube;
-        newRewardAPYPerNode[ContractType.Teseract] = _rewardAPYPerNodeTeseract;
+        for (uint256 i = 0; i < 3; i++) {
+            nodePrice[ContractType(i)] = _nodePrices[i];
+            rewardAPYPerNode[ContractType(i)] = _rewardAPYs[i];
+            _totalNodesPerContractType[ContractType(i)] = 0;
+            newRewardAPYPerNode[ContractType(i)] = _rewardAPYs[i];
+        }
         claimTime = _claimTime;
         admin0XB = msg.sender;
     }
@@ -93,6 +87,7 @@ contract NODERewardManagement {
         );
         nodeOwners.set(account, _nodesOfUser[account].length);
         totalNodesCreated++;
+        _totalNodesPerContractType[_cType]++;
     }
 
     function _cashoutNodeReward(address account, uint256 _nodeIndex) external onlySentry returns (uint256) {
@@ -140,7 +135,7 @@ contract NODERewardManagement {
         require(
             rewardAPYPerNode[ContractType.Square] != newRewardAPYPerNode[ContractType.Square] ||
                 rewardAPYPerNode[ContractType.Cube] != newRewardAPYPerNode[ContractType.Cube] ||
-                rewardAPYPerNode[ContractType.Teseract] != newRewardAPYPerNode[ContractType.Teseract],
+                rewardAPYPerNode[ContractType.Tesseract] != newRewardAPYPerNode[ContractType.Tesseract],
             "CONFIRM RW: No changes made"
         );
 
@@ -175,12 +170,12 @@ contract NODERewardManagement {
                 abi.encodePacked("rewardAPYPerNode[Cube] <= ", uint2str(newRewardAPYPerNode[ContractType.Cube]), "|")
             );
         }
-        if (rewardAPYPerNode[ContractType.Teseract] != newRewardAPYPerNode[ContractType.Teseract]) {
-            rewardAPYPerNode[ContractType.Teseract] = newRewardAPYPerNode[ContractType.Teseract];
+        if (rewardAPYPerNode[ContractType.Tesseract] != newRewardAPYPerNode[ContractType.Tesseract]) {
+            rewardAPYPerNode[ContractType.Tesseract] = newRewardAPYPerNode[ContractType.Tesseract];
             result = string(
                 abi.encodePacked(
-                    "rewardAPYPerNode[Teseract] <= ",
-                    uint2str(newRewardAPYPerNode[ContractType.Teseract]),
+                    "rewardAPYPerNode[Tesseract] <= ",
+                    uint2str(newRewardAPYPerNode[ContractType.Tesseract]),
                     "|"
                 )
             );
@@ -189,6 +184,10 @@ contract NODERewardManagement {
     }
 
     // -------------- External READ functions --------------
+    function totalNodesPerContractType(ContractType _cType) external view returns (uint256) {
+        return _totalNodesPerContractType[_cType];
+    }
+
     function _isNodeOwner(address account) external view returns (bool) {
         return isNodeOwner(account);
     }

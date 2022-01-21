@@ -456,4 +456,8 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     function getTotalCreatedNodes() public view returns (uint256) {
         return nodeRewardManager.totalNodesCreated();
     }
+
+    function getTotalCreatedNodesPerContractType(ContractType _contractType) public view returns (uint256) {
+        return nodeRewardManager.totalNodesPerContractType(_contractType);
+    }
 }
