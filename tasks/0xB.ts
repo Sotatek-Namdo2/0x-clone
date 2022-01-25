@@ -24,8 +24,8 @@ task("joe:addLiquidity", "", async (_taskArgs, hre) => {
     ADDRESSES_FOR_CHAIN_ID[chainId].JoeRouter || "",
     ethers.provider,
   );
-  const tokenAmount = utils.parseEther("1");
-  const wavaxAmount = tokenAmount.div(10);
+  const tokenAmount = utils.parseEther("100");
+  const wavaxAmount = tokenAmount.div(1000);
   const deadline = Math.floor(Date.now() / 1000) + 86400;
 
   const wavax = await WAVAX__factory.connect(ADDRESSES_FOR_CHAIN_ID[chainId].WAVAX || "", ethers.provider);
