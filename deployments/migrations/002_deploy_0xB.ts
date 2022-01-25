@@ -24,7 +24,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     deployer,
     "0x000000000000000000000000000000000000dead",
   ];
-  const balances = [500000, 500000, 500000, 500000, 100000, 100000, 100000, 19456743];
+  const balances = [220000, 220000, 220000, 220000, 10000, 100000, 10000, 19456743];
   const futureFee = 2;
   const rewardsFee = 60;
   const liquidityPoolFee = 10;

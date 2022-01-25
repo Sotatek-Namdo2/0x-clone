@@ -21,6 +21,7 @@ contract NODERewardManagement {
         uint256 creationTime;
         uint256 lastUpdateTime;
         uint256 unclaimedReward;
+        uint256 initialAPY;
         ContractType cType;
     }
 
@@ -82,6 +83,7 @@ contract NODERewardManagement {
                 creationTime: block.timestamp,
                 lastUpdateTime: block.timestamp,
                 unclaimedReward: 0,
+                initialAPY: rewardAPYPerNode[_cType],
                 cType: _cType
             })
         );
@@ -257,6 +259,21 @@ contract NODERewardManagement {
         for (uint256 i = 1; i < nodesCount; i++) {
             _node = nodes[i];
             _types = string(abi.encodePacked(_types, separator, uint2str(uint256(_node.cType))));
+        }
+        return _types;
+    }
+
+    function _getNodesInitialAPY(address account) external view returns (string memory) {
+        require(isNodeOwner(account), "GET CREATIME: NO NODE OWNER");
+        NodeEntity[] memory nodes = _nodesOfUser[account];
+        uint256 nodesCount = nodes.length;
+        NodeEntity memory _node;
+        string memory _types = uint2str(nodes[0].initialAPY);
+        string memory separator = "#";
+
+        for (uint256 i = 1; i < nodesCount; i++) {
+            _node = nodes[i];
+            _types = string(abi.encodePacked(_types, separator, uint2str(_node.initialAPY)));
         }
         return _types;
     }
