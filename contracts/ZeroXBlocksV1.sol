@@ -46,6 +46,9 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     event LiquidityWalletUpdated(address indexed newLiquidityWallet, address indexed oldLiquidityWallet);
     event SwapAndLiquify(uint256 tokensSwapped, uint256 ethReceived, uint256 tokensIntoLiquidity);
 
+    // *************** Enable Cashout ***************
+    bool public enableCashout = true;
+
     // *************** Constructor ***************
     constructor(
         address[] memory payees,
@@ -97,6 +100,10 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     }
 
     // *************** WRITE functions for admin ***************
+    function setEnableCashout(bool _enableCashout) external onlyOwner {
+        enableCashout = _enableCashout;
+    }
+
     function setNodeManagement(address nodeManagement) external onlyOwner {
         nodeRewardManager = NODERewardManagement(nodeManagement);
     }
@@ -111,10 +118,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     function changeClaimTime(uint256 newTime) public onlyOwner {
         nodeRewardManager._changeClaimTime(newTime);
-    }
-
-    function changeAutoDistribution(bool newMode) public onlyOwner {
-        nodeRewardManager._changeAutoDistribute(newMode);
     }
 
     function confirmRewardUpdates() public onlyOwner returns (string memory) {
@@ -361,6 +364,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     function cashoutReward(uint256 _nodeIndex) public {
         address sender = _msgSender();
+        require(enableCashout == true, "CSHT: Cashout Disabled");
         require(sender != address(0), "CSHT: zero address");
         require(!_isBlacklisted[sender], "CSHT: this address has been blacklisted");
         require(
@@ -384,6 +388,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     function cashoutAll() public {
         address sender = _msgSender();
+        require(enableCashout == true, "MANIA CSHT: Cashout Disabled");
         require(sender != address(0), "MANIA CSHT: zero address");
         require(!_isBlacklisted[sender], "MANIA CSHT: this address has been blacklisted");
         require(
@@ -429,10 +434,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     function getClaimTime() public view returns (uint256) {
         return nodeRewardManager.claimTime();
-    }
-
-    function getAutoDistribution() public view returns (bool) {
-        return nodeRewardManager.autoDistribute();
     }
 
     function getNodesNames() public view returns (string memory) {

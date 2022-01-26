@@ -15,7 +15,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
 
   const nodePrices = [
     utils.parseEther("5"), // Square
-    utils.parseEther("10"), // Cube
+    utils.parseEther("15"), // Cube
     utils.parseEther("30"), // Tesseract
   ];
 
