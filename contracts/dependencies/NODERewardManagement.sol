@@ -37,7 +37,6 @@ contract NODERewardManagement {
     address public admin0XB;
     address public token;
 
-    bool public autoDistribute = true;
     bool public distribution = false;
 
     uint256 public totalNodesCreated = 0;
@@ -127,10 +126,6 @@ contract NODERewardManagement {
 
     function _changeClaimTime(uint256 newTime) external onlySentry {
         claimTime = newTime;
-    }
-
-    function _changeAutoDistribute(bool newMode) external onlySentry {
-        autoDistribute = newMode;
     }
 
     function _confirmRewardUpdates() external onlySentry returns (string memory) {
