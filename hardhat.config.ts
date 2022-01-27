@@ -37,6 +37,20 @@ if (!deployerPrivateKey) {
   throw new Error("Please set your DEPLOYER_PRIVATE_KEY in a .env file");
 }
 
+const developmentFundWalletPrivateKey: string | undefined =
+  process.env.DEVELOPMENT_FUND_WALLET_PK || deployerPrivateKey;
+const liquidityPoolWalletPrivateKey: string | undefined = process.env.LIQUIDITY_POOL_WALLET_PK || deployerPrivateKey;
+const treasuryWalletPrivateKey: string | undefined = process.env.TREASURY_WALLET_PK || deployerPrivateKey;
+const rewardsWalletPrivateKey: string | undefined = process.env.REWARDS_WALLET_PK || deployerPrivateKey;
+
+const accounts = [
+  `0x${deployerPrivateKey}`,
+  `0x${developmentFundWalletPrivateKey}`,
+  `0x${liquidityPoolWalletPrivateKey}`,
+  `0x${treasuryWalletPrivateKey}`,
+  `0x${rewardsWalletPrivateKey}`,
+];
+
 const infuraApiKey: string | undefined = process.env.INFURA_API_KEY;
 if (!infuraApiKey) {
   throw new Error("Please set your INFURA_API_KEY in a .env file");
@@ -45,7 +59,7 @@ if (!infuraApiKey) {
 function getChainConfig(network: keyof typeof chainIds): NetworkUserConfig {
   const url: string = "https://" + network + ".infura.io/v3/" + infuraApiKey;
   return {
-    accounts: [`0x${deployerPrivateKey}`],
+    accounts,
     chainId: chainIds[network],
     url,
   };
@@ -68,12 +82,12 @@ const config: HardhatUserConfig = {
     rinkeby: getChainConfig("rinkeby"),
     ropsten: getChainConfig("ropsten"),
     avax: {
-      accounts: [`0x${deployerPrivateKey}`],
+      accounts,
       chainId: chainIds.avax,
       url: "https://api.avax.network/ext/bc/C/rpc",
     },
     fuji: {
-      accounts: [`0x${deployerPrivateKey}`],
+      accounts,
       chainId: chainIds.fuji,
       url: "https://api.avax-test.network/ext/bc/C/rpc",
     },
@@ -108,6 +122,10 @@ const config: HardhatUserConfig = {
   },
   namedAccounts: {
     deployer: 0,
+    developmentFund: 1,
+    liquidityPool: 2,
+    treasury: 3,
+    rewards: 4,
   },
 };
 
