@@ -5,7 +5,7 @@ import { chainIds } from "../../hardhat.config";
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Promise<void> {
   const { deployments, getNamedAccounts, getChainId } = hre;
   const { deploy, execute } = deployments;
-  const { deployer, developmentFund, treasury, rewards } = await getNamedAccounts();
+  const { deployer, developmentFund, liquidityPool, treasury, rewards } = await getNamedAccounts();
   const chainId = await getChainId();
 
   if (chainId === chainIds.avax.toString()) {
@@ -17,7 +17,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const addresses = [
     deployer,
     developmentFund,
-    deployer,
+    liquidityPool,
     treasury,
     rewards,
     deployer,

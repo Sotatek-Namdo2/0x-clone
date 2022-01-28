@@ -21,6 +21,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     address public developmentFundPool;
     address public treasuryPool;
     address public rewardsPool;
+    address public liquidityPool;
 
     address public deadWallet = 0x000000000000000000000000000000000000dEaD;
 
@@ -28,7 +29,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     uint256 public rewardsFee;
     uint256 public treasuryFee;
     uint256 public liquidityPoolFee;
-    uint256 public futureFee;
+    uint256 public developmentFee;
     uint256 public totalFees;
 
     uint256 public cashoutFee;
@@ -66,11 +67,14 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     ) ERC20("0xBlocks v2", "0XB") PaymentSplitter(payees, shares) {
         require(addresses.length > 0 && balances.length > 0, "THERE MUST BE AT LEAST ONE ADDRESS AND BALANCES.");
 
-        developmentFundPool = addresses[2];
+        developmentFundPool = addresses[1];
+        liquidityPool = addresses[2];
         treasuryPool = addresses[3];
         rewardsPool = addresses[4];
 
         require(developmentFundPool != address(0), "PLEASE PROVIDE PROPER DEVELOPMENT FUND POOL ADDRESS.");
+        require(liquidityPool != address(0), "PLEASE PROVIDE PROPER REWARDS POOL ADDRESS.");
+        require(treasuryPool != address(0), "PLEASE PROVIDE PROPER REWARDS POOL ADDRESS.");
         require(rewardsPool != address(0), "PLEASE PROVIDE PROPER REWARDS POOL ADDRESS.");
 
         require(uniV2Router != address(0), "PLEASE PROVIDE PROPER ROUTER ADDRESS.");
@@ -87,14 +91,14 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         _setAutomatedMarketMakerPair(_uniswapV2Pair, true);
 
         require(fees[0] > 0 && fees[1] > 0 && fees[2] > 0 && fees[3] > 0, "ALL FEES MUST BE GREATER THAN 0%.");
-        futureFee = fees[0];
+        developmentFee = fees[0];
         treasuryFee = fees[1];
         rewardsFee = fees[2];
         liquidityPoolFee = fees[3];
         cashoutFee = fees[4];
         rwSwap = fees[5];
 
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee) + treasuryFee;
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
 
         require(addresses.length == balances.length, "ADDRESSES AND BALANCES ARRAYS HAVE DIFFERENT SIZES");
 
@@ -150,6 +154,10 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         developmentFundPool = wall;
     }
 
+    function updateLiquidityWall(address payable wall) external onlyOwner {
+        liquidityPool = wall;
+    }
+
     function updateRewardsWall(address payable wall) external onlyOwner {
         rewardsPool = wall;
     }
@@ -160,22 +168,22 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     function updateRewardsFee(uint256 value) external onlyOwner {
         rewardsFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee) + treasuryFee;
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
     }
 
     function updateLiquidityFee(uint256 value) external onlyOwner {
         liquidityPoolFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee) + treasuryFee;
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
     }
 
-    function updateFutureFee(uint256 value) external onlyOwner {
-        futureFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee) + treasuryFee;
+    function updateDevelopmentFee(uint256 value) external onlyOwner {
+        developmentFee = value;
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
     }
 
     function updateTreasuryFee(uint256 value) external onlyOwner {
         treasuryFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee) + treasuryFee;
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
     }
 
     function updateCashoutFee(uint256 value) external onlyOwner {
@@ -294,7 +302,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(!_isBlacklisted[sender], "NODE CREATION: this address has been blacklisted");
         require(
             sender != developmentFundPool && sender != rewardsPool && sender != treasuryPool,
-            "NODE CREATION: future and reward pools cannot create node"
+            "NODE CREATION: fund, reward and treasury pools cannot create node"
         );
         uint256 nodeCount = getNodeNumberOf(sender);
         require(
@@ -303,34 +311,28 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         );
         uint256 nodePrice = nodeRewardManager.nodePrice(cType) * names.length;
         require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
-        super._transfer(sender, address(this), nodePrice);
-        uint256 contractTokenBalance = balanceOf(address(this));
-        bool swapAmountOk = contractTokenBalance >= swapTokensAmount;
-        if (swapAmountOk && swapLiquify && !swapping && sender != owner() && !automatedMarketMakerPairs[sender]) {
-            swapping = true;
 
-            uint256 developmentFundTokens = (contractTokenBalance * (futureFee)) / (100);
+        // distribute to wallets
+        swapping = true;
 
-            // swapAndSendToFee(developmentFundPool, developmentFundTokens);
-            super._transfer(address(this), developmentFundPool, developmentFundTokens);
+        uint256 developmentFundTokens = (nodePrice * (developmentFee)) / (100);
+        super._transfer(sender, developmentFundPool, developmentFundTokens);
 
-            uint256 rewardsPoolTokens = (contractTokenBalance * (rewardsFee)) / (100);
+        uint256 rewardsPoolTokens = (nodePrice * (rewardsFee)) / (100);
+        super._transfer(sender, rewardsPool, rewardsPoolTokens);
 
-            // uint256 rewardsTokenstoSwap = (rewardsPoolTokens * (rwSwap)) / (100);
+        uint256 treasuryPoolTokens = (nodePrice * (treasuryFee)) / (100);
+        super._transfer(sender, treasuryPool, treasuryPoolTokens);
 
-            // swapAndSendToFee(rewardsPool, rewardsTokenstoSwap);
-            super._transfer(address(this), rewardsPool, rewardsPoolTokens);
+        uint256 liquidityTokens = (nodePrice * (liquidityPoolFee)) / (100);
+        super._transfer(sender, liquidityPool, liquidityTokens);
 
-            uint256 treasuryPoolTokens = (contractTokenBalance * (treasuryFee)) / (100);
-            super._transfer(address(this), treasuryPool, treasuryPoolTokens);
-            uint256 swapTokens = (contractTokenBalance * (liquidityPoolFee)) / (100);
+        uint256 extraT = nodePrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
+        super._transfer(sender, address(this), extraT);
 
-            swapAndLiquify(swapTokens);
+        swapping = false;
 
-            swapTokensForEth(balanceOf(address(this)));
-
-            swapping = false;
-        }
+        // create node
         for (uint256 i = 0; i < names.length; i++) {
             nodeRewardManager.createNode(sender, names[i], cType);
         }

@@ -95,7 +95,7 @@ contract NODERewardManagement {
         NodeEntity[] storage nodes = _nodesOfUser[account];
         require(_nodeIndex >= 0 && _nodeIndex < nodes.length, "NODE: Index Error");
         NodeEntity storage node = nodes[_nodeIndex];
-        uint256 rewardNode = nodeTotalReward(account, _nodeIndex);
+        uint256 rewardNode = nodeTotalReward(node);
         node.unclaimedReward = 0;
         node.lastUpdateTime = block.timestamp;
         return rewardNode;
@@ -109,7 +109,7 @@ contract NODERewardManagement {
         uint256 rewardsTotal = 0;
         for (uint256 i = 0; i < nodesCount; i++) {
             _node = nodes[i];
-            rewardsTotal += nodeTotalReward(account, i);
+            rewardsTotal += nodeTotalReward(_node);
             _node.unclaimedReward = 0;
             _node.lastUpdateTime = block.timestamp;
         }
@@ -144,7 +144,7 @@ contract NODERewardManagement {
             uint256 nodesCount = nodes.length;
             for (uint256 j = 0; j < nodesCount; j++) {
                 NodeEntity storage node = nodes[j];
-                uint256 reward = nodeTotalReward(account, j);
+                uint256 reward = nodeTotalReward(node);
                 node.lastUpdateTime = block.timestamp;
 
                 node.unclaimedReward += reward;
@@ -194,11 +194,12 @@ contract NODERewardManagement {
         uint256 nodesCount;
         uint256 rewardCount = 0;
 
-        NodeEntity[] storage nodes = _nodesOfUser[account];
+        NodeEntity[] memory nodes = _nodesOfUser[account];
         nodesCount = nodes.length;
 
         for (uint256 i = 0; i < nodesCount; i++) {
-            rewardCount += nodeTotalReward(account, i);
+            NodeEntity memory _node = nodes[i];
+            rewardCount += nodeTotalReward(_node);
         }
 
         return rewardCount;
@@ -206,10 +207,10 @@ contract NODERewardManagement {
 
     function _getRewardAmountOf(address account, uint256 _nodeIndex) external view returns (uint256) {
         require(isNodeOwner(account), "GET REWARD OF: NO NODE OWNER");
-        NodeEntity[] storage nodes = _nodesOfUser[account];
+        NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 numberOfNodes = nodes.length;
         require(_nodeIndex >= 0 && _nodeIndex < numberOfNodes, "NODE: Node index is improper");
-        NodeEntity storage node = nodes[_nodeIndex];
+        NodeEntity memory node = nodes[_nodeIndex];
         uint256 rewardNode = node.unclaimedReward;
         return rewardNode;
     }
@@ -277,12 +278,12 @@ contract NODERewardManagement {
         require(isNodeOwner(account), "GET REWARD: NO NODE OWNER");
         NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
-        string memory _rewardsAvailable = uint2str(nodeTotalReward(account, 0));
+        string memory _rewardsAvailable = uint2str(nodeTotalReward(nodes[0]));
         string memory separator = "#";
 
         for (uint256 i = 1; i < nodesCount; i++) {
             _rewardsAvailable = string(
-                abi.encodePacked(_rewardsAvailable, separator, uint2str(nodeTotalReward(account, i)))
+                abi.encodePacked(_rewardsAvailable, separator, uint2str(nodeTotalReward(nodes[i])))
             );
         }
         return _rewardsAvailable;
@@ -309,16 +310,11 @@ contract NODERewardManagement {
     }
 
     // -------------- Private/Internal Helpers --------------
-    function nodeTotalReward(address account, uint256 index) private view returns (uint256) {
-        NodeEntity[] memory nodes = _nodesOfUser[account];
-        NodeEntity memory node = nodes[index];
-        return nodeRewardSinceLastUpdate(account, index) + node.unclaimedReward;
+    function nodeTotalReward(NodeEntity memory node) private view returns (uint256) {
+        return nodeRewardSinceLastUpdate(node) + node.unclaimedReward;
     }
 
-    function nodeRewardSinceLastUpdate(address account, uint256 index) private view returns (uint256) {
-        NodeEntity[] memory nodes = _nodesOfUser[account];
-        NodeEntity memory node = nodes[index];
-
+    function nodeRewardSinceLastUpdate(NodeEntity memory node) private view returns (uint256) {
         uint256 delta = block.timestamp - node.lastUpdateTime;
         uint256 rewardAPY = rewardAPYPerNode[node.cType];
         uint256 result = (rewardAPY / UNIX_YEAR) * delta;
