@@ -224,6 +224,10 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         emit SetAutomatedMarketMakerPair(pair, value);
     }
 
+    function getNodeNumberOf(address account) private view returns (uint256) {
+        return nodeRewardManager._getNodeNumberOf(account);
+    }
+
     function _transfer(
         address from,
         address to,
@@ -390,10 +394,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     }
 
     // *************** READ function for public ***************
-    function getNodeNumberOf(address account) public view onlyOwner returns (uint256) {
-        return nodeRewardManager._getNodeNumberOf(account);
-    }
-
     function getRewardAmountOf(address account) public view onlyOwner returns (uint256) {
         return nodeRewardManager._getRewardAmountOf(account);
     }
