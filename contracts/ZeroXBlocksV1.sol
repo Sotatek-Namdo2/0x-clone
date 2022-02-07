@@ -73,8 +73,8 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         rewardsPool = addresses[4];
 
         require(developmentFundPool != address(0), "PLEASE PROVIDE PROPER DEVELOPMENT FUND POOL ADDRESS.");
-        require(liquidityPool != address(0), "PLEASE PROVIDE PROPER REWARDS POOL ADDRESS.");
-        require(treasuryPool != address(0), "PLEASE PROVIDE PROPER REWARDS POOL ADDRESS.");
+        require(liquidityPool != address(0), "PLEASE PROVIDE PROPER LIQUIDITY POOL ADDRESS.");
+        require(treasuryPool != address(0), "PLEASE PROVIDE PROPER TREASURY POOL ADDRESS.");
         require(rewardsPool != address(0), "PLEASE PROVIDE PROPER REWARDS POOL ADDRESS.");
 
         require(uniV2Router != address(0), "PLEASE PROVIDE PROPER ROUTER ADDRESS.");
@@ -328,7 +328,9 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         super._transfer(sender, liquidityPool, liquidityTokens);
 
         uint256 extraT = nodePrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
-        super._transfer(sender, address(this), extraT);
+        if (extraT > 0) {
+            super._transfer(sender, address(this), extraT);
+        }
 
         swapping = false;
 
@@ -388,7 +390,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     }
 
     // *************** READ function for public ***************
-    function getNodeNumberOf(address account) public view returns (uint256) {
+    function getNodeNumberOf(address account) public view onlyOwner returns (uint256) {
         return nodeRewardManager._getNodeNumberOf(account);
     }
 

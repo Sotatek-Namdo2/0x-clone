@@ -211,7 +211,7 @@ contract NODERewardManagement {
         uint256 numberOfNodes = nodes.length;
         require(_nodeIndex >= 0 && _nodeIndex < numberOfNodes, "NODE: Node index is improper");
         NodeEntity memory node = nodes[_nodeIndex];
-        uint256 rewardNode = node.unclaimedReward;
+        uint256 rewardNode = nodeTotalReward(node);
         return rewardNode;
     }
 
