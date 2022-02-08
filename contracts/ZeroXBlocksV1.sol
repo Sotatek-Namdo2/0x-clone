@@ -240,56 +240,26 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         super._transfer(from, to, amount);
     }
 
-    function swapAndSendToFee(address destination, uint256 tokens) private {
-        uint256 initialETHBalance = address(this).balance;
-        swapTokensForEth(tokens);
-        uint256 newBalance = (address(this).balance) - (initialETHBalance);
-        payable(destination).transfer(newBalance);
-    }
-
-    function swapAndLiquify(uint256 tokens) private {
-        uint256 half = tokens / (2);
-        uint256 otherHalf = tokens - (half);
-
-        uint256 initialBalance = address(this).balance;
-
-        swapTokensForEth(half);
-
-        uint256 newBalance = address(this).balance - (initialBalance);
-
-        addLiquidity(otherHalf, newBalance);
-
-        emit SwapAndLiquify(half, newBalance, otherHalf);
-    }
-
-    function swapTokensForEth(uint256 tokenAmount) private {
+    function swapTokensForAVAX(uint256 tokenAmount) private returns (uint256[] memory) {
         address[] memory path = new address[](2);
         path[0] = address(this);
         path[1] = uniswapV2Router.WAVAX();
 
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
-            tokenAmount,
-            0, // accept any amount of ETH
-            path,
-            address(this),
-            block.timestamp
-        );
+        return
+            uniswapV2Router.swapExactTokensForTokens(
+                tokenAmount,
+                0, // accept any amount of AVAX
+                path,
+                address(this),
+                block.timestamp
+            );
     }
 
-    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
-
-        // add the liquidity
-        uniswapV2Router.addLiquidityAVAX{ value: ethAmount }(
-            address(this),
-            tokenAmount,
-            0, // slippage is unavoidable
-            0, // slippage is unavoidable
-            address(0),
-            block.timestamp
-        );
+    function swapTokensForUSDC(uint256 tokenAmount) private pure returns (uint256) {
+        // todo
+        return tokenAmount;
     }
 
     // *************** WRITE functions for public ***************
