@@ -16,16 +16,22 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     uint256 public ownedNodesCountLimit = 100;
 
     address public uniswapV2Pair;
-    address public futureUsePool;
-    address public distributionPool;
+
+    // *************** Pools Address ***************
+    address public developmentFundPool;
+    address public treasuryPool;
+    address public rewardsPool;
+    address public liquidityPool;
 
     address public deadWallet = 0x000000000000000000000000000000000000dEaD;
 
     // *************** Storage for fees ***************
     uint256 public rewardsFee;
+    uint256 public treasuryFee;
     uint256 public liquidityPoolFee;
-    uint256 public futureFee;
+    uint256 public developmentFee;
     uint256 public totalFees;
+
     uint256 public cashoutFee;
 
     // *************** Storage for swapping ***************
@@ -61,11 +67,15 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     ) ERC20("0xBlocks v2", "0XB") PaymentSplitter(payees, shares) {
         require(addresses.length > 0 && balances.length > 0, "THERE MUST BE AT LEAST ONE ADDRESS AND BALANCES.");
 
-        futureUsePool = addresses[4];
-        distributionPool = addresses[5];
+        developmentFundPool = addresses[1];
+        liquidityPool = addresses[2];
+        treasuryPool = addresses[3];
+        rewardsPool = addresses[4];
 
-        require(futureUsePool != address(0), "PLEASE PROVIDE PROPER FUTURE POOL ADDRESS.");
-        require(distributionPool != address(0), "PLEASE PROVIDE PROPER DISTRIBUTION POOL ADDRESS.");
+        require(developmentFundPool != address(0), "PLEASE PROVIDE PROPER DEVELOPMENT FUND POOL ADDRESS.");
+        require(liquidityPool != address(0), "PLEASE PROVIDE PROPER LIQUIDITY POOL ADDRESS.");
+        require(treasuryPool != address(0), "PLEASE PROVIDE PROPER TREASURY POOL ADDRESS.");
+        require(rewardsPool != address(0), "PLEASE PROVIDE PROPER REWARDS POOL ADDRESS.");
 
         require(uniV2Router != address(0), "PLEASE PROVIDE PROPER ROUTER ADDRESS.");
         IJoeRouter02 _uniswapV2Router = IJoeRouter02(uniV2Router);
@@ -80,14 +90,15 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
         _setAutomatedMarketMakerPair(_uniswapV2Pair, true);
 
-        require(fees[0] > 0 && fees[1] > 0 && fees[2] > 0 && fees[3] > 0, "ALL FEES MUST BE GREATER THAN 0.");
-        futureFee = fees[0];
-        rewardsFee = fees[1];
-        liquidityPoolFee = fees[2];
-        cashoutFee = fees[3];
-        rwSwap = fees[4];
+        require(fees[0] > 0 && fees[1] > 0 && fees[2] > 0 && fees[3] > 0, "ALL FEES MUST BE GREATER THAN 0%.");
+        developmentFee = fees[0];
+        treasuryFee = fees[1];
+        rewardsFee = fees[2];
+        liquidityPoolFee = fees[3];
+        cashoutFee = fees[4];
+        rwSwap = fees[5];
 
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee);
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
 
         require(addresses.length == balances.length, "ADDRESSES AND BALANCES ARRAYS HAVE DIFFERENT SIZES");
 
@@ -139,27 +150,40 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         swapTokensAmount = newVal;
     }
 
-    function updateFutureWall(address payable wall) external onlyOwner {
-        futureUsePool = wall;
+    function updateDevelopmentFundWall(address payable wall) external onlyOwner {
+        developmentFundPool = wall;
+    }
+
+    function updateLiquidityWall(address payable wall) external onlyOwner {
+        liquidityPool = wall;
     }
 
     function updateRewardsWall(address payable wall) external onlyOwner {
-        distributionPool = wall;
+        rewardsPool = wall;
+    }
+
+    function updateTreasuryWall(address payable wall) external onlyOwner {
+        treasuryPool = wall;
     }
 
     function updateRewardsFee(uint256 value) external onlyOwner {
         rewardsFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee);
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
     }
 
     function updateLiquidityFee(uint256 value) external onlyOwner {
         liquidityPoolFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee);
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
     }
 
-    function updatefutureFee(uint256 value) external onlyOwner {
-        futureFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (futureFee);
+    function updateDevelopmentFee(uint256 value) external onlyOwner {
+        developmentFee = value;
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
+    }
+
+    function updateTreasuryFee(uint256 value) external onlyOwner {
+        treasuryFee = value;
+        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
     }
 
     function updateCashoutFee(uint256 value) external onlyOwner {
@@ -200,6 +224,10 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         emit SetAutomatedMarketMakerPair(pair, value);
     }
 
+    function getNodeNumberOf(address account) private view returns (uint256) {
+        return nodeRewardManager._getNodeNumberOf(account);
+    }
+
     function _transfer(
         address from,
         address to,
@@ -212,104 +240,36 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         super._transfer(from, to, amount);
     }
 
-    function swapAndSendToFee(address destination, uint256 tokens) private {
-        uint256 initialETHBalance = address(this).balance;
-        swapTokensForEth(tokens);
-        uint256 newBalance = (address(this).balance) - (initialETHBalance);
-        payable(destination).transfer(newBalance);
+    function swapAndSendToWallet(address targetWallet, uint256 tokens) private {
+        uint256 initialAVAXBalance = address(this).balance;
+        swapTokensForAVAX(tokens);
+        uint256 balanceDelta = (address(this).balance) - (initialAVAXBalance);
+        payable(targetWallet).transfer(balanceDelta);
     }
 
-    function swapAndLiquify(uint256 tokens) private {
-        uint256 half = tokens / (2);
-        uint256 otherHalf = tokens - (half);
-
-        uint256 initialBalance = address(this).balance;
-
-        swapTokensForEth(half);
-
-        uint256 newBalance = address(this).balance - (initialBalance);
-
-        addLiquidity(otherHalf, newBalance);
-
-        emit SwapAndLiquify(half, newBalance, otherHalf);
-    }
-
-    function swapTokensForEth(uint256 tokenAmount) private {
+    function swapTokensForAVAX(uint256 tokenAmount) private returns (uint256[] memory) {
         address[] memory path = new address[](2);
         path[0] = address(this);
         path[1] = uniswapV2Router.WAVAX();
 
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
-            tokenAmount,
-            0, // accept any amount of ETH
-            path,
-            address(this),
-            block.timestamp
-        );
+        return
+            uniswapV2Router.swapExactTokensForTokens(
+                tokenAmount,
+                0, // accept any amount of AVAX
+                path,
+                address(this),
+                block.timestamp
+            );
     }
 
-    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
-
-        // add the liquidity
-        uniswapV2Router.addLiquidityAVAX{ value: ethAmount }(
-            address(this),
-            tokenAmount,
-            0, // slippage is unavoidable
-            0, // slippage is unavoidable
-            address(0),
-            block.timestamp
-        );
+    function swapTokensForUSDC(uint256 tokenAmount) private pure returns (uint256) {
+        // todo
+        return tokenAmount;
     }
 
     // *************** WRITE functions for public ***************
-    function createNodeWithTokens(string memory name, ContractType cType) public {
-        require(
-            bytes(name).length > 3 && bytes(name).length < 33,
-            "NODE CREATION: node name must be between 4 and 32 characters"
-        );
-        address sender = _msgSender();
-        require(sender != address(0), "NODE CREATION: creation from the zero address");
-        require(!_isBlacklisted[sender], "NODE CREATION: this address has been blacklisted");
-        require(
-            sender != futureUsePool && sender != distributionPool,
-            "NODE CREATION: future and reward pools cannot create node"
-        );
-
-        uint256 nodeCount = getNodeNumberOf(sender);
-        require(nodeCount < ownedNodesCountLimit, "NODE CREATION: address reached limit of owned nodes");
-        uint256 nodePrice = nodeRewardManager.nodePrice(cType);
-        require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
-        uint256 contractTokenBalance = balanceOf(address(this));
-        bool swapAmountOk = (contractTokenBalance >= swapTokensAmount);
-        if (swapAmountOk && swapLiquify && !swapping && sender != owner() && !automatedMarketMakerPairs[sender]) {
-            swapping = true;
-
-            uint256 futureTokens = (contractTokenBalance * (futureFee)) / (100);
-
-            swapAndSendToFee(futureUsePool, futureTokens);
-
-            uint256 rewardsPoolTokens = (contractTokenBalance * (rewardsFee)) / (100);
-
-            uint256 rewardsTokenstoSwap = (rewardsPoolTokens * (rwSwap)) / (100);
-
-            swapAndSendToFee(distributionPool, rewardsTokenstoSwap);
-            super._transfer(address(this), distributionPool, rewardsPoolTokens - (rewardsTokenstoSwap));
-
-            uint256 swapTokens = (contractTokenBalance * (liquidityPoolFee)) / (100);
-
-            swapAndLiquify(swapTokens);
-
-            swapTokensForEth(balanceOf(address(this)));
-
-            swapping = false;
-        }
-        super._transfer(sender, address(this), nodePrice);
-        nodeRewardManager.createNode(sender, name, cType);
-    }
-
     function createMultipleNodesWithTokens(string[] memory names, ContractType cType) public {
         for (uint256 i = 0; i < names.length; i++) {
             require(
@@ -322,41 +282,44 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(sender != address(0), "NODE CREATION: creation from the zero address");
         require(!_isBlacklisted[sender], "NODE CREATION: this address has been blacklisted");
         require(
-            sender != futureUsePool && sender != distributionPool,
-            "NODE CREATION: future and reward pools cannot create node"
+            sender != developmentFundPool && sender != rewardsPool && sender != treasuryPool,
+            "NODE CREATION: fund, reward and treasury pools cannot create node"
         );
         uint256 nodeCount = getNodeNumberOf(sender);
         require(
             nodeCount + names.length <= ownedNodesCountLimit,
             "NODE CREATION: address reached limit of owned nodes"
         );
-        uint256 nodePrice = nodeRewardManager.nodePrice(cType);
+        uint256 nodePrice = nodeRewardManager.nodePrice(cType) * names.length;
         require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
-        uint256 contractTokenBalance = balanceOf(address(this));
-        bool swapAmountOk = contractTokenBalance >= swapTokensAmount;
-        if (swapAmountOk && swapLiquify && !swapping && sender != owner() && !automatedMarketMakerPairs[sender]) {
-            swapping = true;
 
-            uint256 futureTokens = (contractTokenBalance * (futureFee)) / (100);
+        // distribute to wallets
+        swapping = true;
 
-            swapAndSendToFee(futureUsePool, futureTokens);
+        uint256 developmentFundTokens = (nodePrice * (developmentFee)) / (100);
+        // super._transfer(sender, developmentFundPool, developmentFundTokens);
+        // todo: just for testing of convert native coin and send eth
+        super._transfer(sender, address(this), developmentFundTokens);
+        // todo: hard fixing native coin ratio. Please create new storage for later.
+        swapAndSendToWallet(developmentFundPool, developmentFundTokens / 2);
 
-            uint256 rewardsPoolTokens = (contractTokenBalance * (rewardsFee)) / (100);
+        uint256 rewardsPoolTokens = (nodePrice * (rewardsFee)) / (100);
+        super._transfer(sender, rewardsPool, rewardsPoolTokens);
 
-            uint256 rewardsTokenstoSwap = (rewardsPoolTokens * (rwSwap)) / (100);
+        uint256 treasuryPoolTokens = (nodePrice * (treasuryFee)) / (100);
+        super._transfer(sender, treasuryPool, treasuryPoolTokens);
 
-            swapAndSendToFee(distributionPool, rewardsTokenstoSwap);
-            super._transfer(address(this), distributionPool, rewardsPoolTokens - (rewardsTokenstoSwap));
+        uint256 liquidityTokens = (nodePrice * (liquidityPoolFee)) / (100);
+        super._transfer(sender, liquidityPool, liquidityTokens);
 
-            uint256 swapTokens = (contractTokenBalance * (liquidityPoolFee)) / (100);
-
-            swapAndLiquify(swapTokens);
-
-            swapTokensForEth(balanceOf(address(this)));
-
-            swapping = false;
+        uint256 extraT = nodePrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
+        if (extraT > 0) {
+            super._transfer(sender, address(this), extraT);
         }
-        super._transfer(sender, address(this), nodePrice);
+
+        swapping = false;
+
+        // create node
         for (uint256 i = 0; i < names.length; i++) {
             nodeRewardManager.createNode(sender, names[i], cType);
         }
@@ -368,7 +331,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(sender != address(0), "CSHT: zero address");
         require(!_isBlacklisted[sender], "CSHT: this address has been blacklisted");
         require(
-            sender != futureUsePool && sender != distributionPool,
+            sender != developmentFundPool && sender != rewardsPool && sender != treasuryPool,
             "CSHT: future and reward pools cannot cashout rewards"
         );
         uint256 rewardAmount = nodeRewardManager._getRewardAmountOf(sender, _nodeIndex);
@@ -378,11 +341,12 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             uint256 feeAmount;
             if (cashoutFee > 0) {
                 feeAmount = (rewardAmount * (cashoutFee)) / (100);
-                swapAndSendToFee(futureUsePool, feeAmount);
+                // swapAndSendToFee(developmentFundPool, feeAmount);
+                super._transfer(rewardsPool, developmentFundPool, feeAmount);
             }
             rewardAmount -= feeAmount;
         }
-        super._transfer(distributionPool, sender, rewardAmount);
+        super._transfer(rewardsPool, sender, rewardAmount);
         nodeRewardManager._cashoutNodeReward(sender, _nodeIndex);
     }
 
@@ -392,7 +356,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(sender != address(0), "MANIA CSHT: zero address");
         require(!_isBlacklisted[sender], "MANIA CSHT: this address has been blacklisted");
         require(
-            sender != futureUsePool && sender != distributionPool,
+            sender != developmentFundPool && sender != rewardsPool,
             "MANIA CSHT: future and reward pools cannot cashout rewards"
         );
         uint256 rewardAmount = nodeRewardManager._getRewardAmountOf(sender);
@@ -401,19 +365,16 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             uint256 feeAmount;
             if (cashoutFee > 0) {
                 feeAmount = (rewardAmount * (cashoutFee)) / (100);
-                swapAndSendToFee(futureUsePool, feeAmount);
+                // swapAndSendToFee(developmentFundPool, feeAmount);
+                super._transfer(rewardsPool, developmentFundPool, feeAmount);
             }
             rewardAmount -= feeAmount;
         }
-        super._transfer(distributionPool, sender, rewardAmount);
+        super._transfer(rewardsPool, sender, rewardAmount);
         nodeRewardManager._cashoutAllNodesReward(sender);
     }
 
     // *************** READ function for public ***************
-    function getNodeNumberOf(address account) public view returns (uint256) {
-        return nodeRewardManager._getNodeNumberOf(account);
-    }
-
     function getRewardAmountOf(address account) public view onlyOwner returns (uint256) {
         return nodeRewardManager._getRewardAmountOf(account);
     }

@@ -5,7 +5,7 @@ import { chainIds } from "../../hardhat.config";
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Promise<void> {
   const { deployments, getNamedAccounts, getChainId } = hre;
   const { deploy, execute } = deployments;
-  const { deployer } = await getNamedAccounts();
+  const { deployer, developmentFund, liquidityPool, treasury, rewards } = await getNamedAccounts();
   const chainId = await getChainId();
 
   if (chainId === chainIds.avax.toString()) {
@@ -16,21 +16,22 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const shares = [1];
   const addresses = [
     deployer,
-    deployer,
-    deployer,
-    deployer,
-    deployer,
+    developmentFund,
+    liquidityPool,
+    treasury,
+    rewards,
     deployer,
     deployer,
     "0x000000000000000000000000000000000000dead",
   ];
-  const balances = [220000, 220000, 220000, 220000, 10000, 100000, 10000, 19456743];
-  const futureFee = 2;
-  const rewardsFee = 60;
-  const liquidityPoolFee = 10;
+  const balances = [5220000, 220000, 220000, 220000, 220000, 100000, 10000, 14246743];
+  const futureFee = 10;
+  const treasuryFee = 20;
+  const rewardsFee = 50;
+  const liquidityPoolFee = 20;
   const cashoutFee = 10;
   const rwSwap = 30;
-  const fees = [futureFee, rewardsFee, liquidityPoolFee, cashoutFee, rwSwap];
+  const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee, rwSwap];
   const swapAmount = 30;
   const uniV2Router = "0x5db0735cf88f85e78ed742215090c465979b5006";
 
