@@ -69,26 +69,29 @@ contract NODERewardManagement {
         token = token_;
     }
 
-    function createNode(
+    function createNodes(
         address account,
-        string memory nodeName,
+        string[] memory nodeNames,
         ContractType _cType
     ) external onlySentry {
         _nodesOfUser[account];
 
-        _nodesOfUser[account].push(
-            NodeEntity({
-                name: nodeName,
-                creationTime: block.timestamp,
-                lastUpdateTime: block.timestamp,
-                unclaimedReward: 0,
-                initialAPY: rewardAPYPerNode[_cType],
-                cType: _cType
-            })
-        );
+        for (uint256 i = 0; i < nodeNames.length; i++) {
+            _nodesOfUser[account].push(
+                NodeEntity({
+                    name: nodeNames[i],
+                    creationTime: block.timestamp,
+                    lastUpdateTime: block.timestamp,
+                    unclaimedReward: 0,
+                    initialAPY: rewardAPYPerNode[_cType],
+                    cType: _cType
+                })
+            );
+        }
+
         nodeOwners.set(account, _nodesOfUser[account].length);
-        totalNodesCreated++;
-        _totalNodesPerContractType[_cType]++;
+        totalNodesCreated += nodeNames.length;
+        _totalNodesPerContractType[_cType] += nodeNames.length;
     }
 
     function _cashoutNodeReward(address account, uint256 _nodeIndex) external onlySentry returns (uint256) {

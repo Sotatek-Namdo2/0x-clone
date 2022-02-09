@@ -17,11 +17,14 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     address public uniswapV2Pair;
 
+    uint256 public totalTokensPaidForMinting;
+
     // *************** Pools Address ***************
     address public developmentFundPool;
     address public treasuryPool;
     address public rewardsPool;
     address public liquidityPool;
+    address public usdcToken = 0x5425890298aed601595a70AB815c96711a31Bc65;
 
     address public deadWallet = 0x000000000000000000000000000000000000dEaD;
 
@@ -31,7 +34,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     uint256 public liquidityPoolFee;
     uint256 public developmentFee;
     uint256 public totalFees;
-
     uint256 public cashoutFee;
 
     // *************** Storage for swapping ***************
@@ -108,6 +110,8 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(totalSupply() == 20456743e18, "`totalSupply` NEEDS TO EQUAL 20 MILLIONS");
         require(swapAmount > 0, "`swapAmount` NEEDS TO BE POSITIVE");
         swapTokensAmount = swapAmount * (10**18);
+
+        totalTokensPaidForMinting = 0;
     }
 
     // *************** WRITE functions for admin ***************
@@ -256,6 +260,23 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         );
     }
 
+    // function swapToUSDCAndSendToWallet(address targetWallet, uint256 tokens) private {
+    //     address[] memory path = new address[](3);
+    //     path[0] = address(this);
+    //     path[1] = uniswapV2Router.WAVAX();
+    //     path[2] = usdcToken;
+
+    //     _approve(address(this), address(uniswapV2Router), tokens);
+
+    //     uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+    //         tokens,
+    //         0, // accept any amount of USDC
+    //         path,
+    //         targetWallet,
+    //         block.timestamp
+    //     );
+    // }
+
     function swapTokensForUSDC(uint256 tokenAmount) private pure returns (uint256) {
         // todo
         return tokenAmount;
@@ -282,36 +303,37 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             nodeCount + names.length <= ownedNodesCountLimit,
             "NODE CREATION: address reached limit of owned nodes"
         );
-        uint256 nodePrice = nodeRewardManager.nodePrice(cType) * names.length;
-        require(balanceOf(sender) >= nodePrice, "NODE CREATION: Balance too low for creation.");
+        uint256 nodesPrice = nodeRewardManager.nodePrice(cType) * names.length;
+        totalTokensPaidForMinting += nodesPrice;
+        require(balanceOf(sender) >= nodesPrice, "NODE CREATION: Balance too low for creation.");
 
         // distribute to wallets
         swapping = true;
 
-        uint256 developmentFundTokens = (nodePrice * (developmentFee)) / (100);
+        uint256 developmentFundTokens = (nodesPrice * (developmentFee)) / (100);
         super._transfer(sender, address(this), developmentFundTokens);
         swapToAVAXAndSendToWallet(developmentFundPool, developmentFundTokens);
 
-        uint256 rewardsPoolTokens = (nodePrice * (rewardsFee)) / (100);
+        uint256 rewardsPoolTokens = (nodesPrice * (rewardsFee)) / (100);
         super._transfer(sender, rewardsPool, rewardsPoolTokens);
 
-        uint256 treasuryPoolTokens = (nodePrice * (treasuryFee)) / (100);
-        super._transfer(sender, treasuryPool, treasuryPoolTokens);
+        uint256 treasuryPoolTokens = (nodesPrice * (treasuryFee)) / (100);
+        super._transfer(sender, address(this), treasuryPoolTokens);
+        swapToAVAXAndSendToWallet(treasuryPool, treasuryPoolTokens);
 
-        uint256 liquidityTokens = (nodePrice * (liquidityPoolFee)) / (100);
-        super._transfer(sender, liquidityPool, liquidityTokens);
+        uint256 liquidityTokens = (nodesPrice * (liquidityPoolFee)) / (100);
+        super._transfer(sender, liquidityPool, liquidityTokens - liquidityTokens / 2);
+        super._transfer(sender, address(this), liquidityTokens / 2);
+        swapToAVAXAndSendToWallet(liquidityPool, liquidityTokens / 2);
 
-        uint256 extraT = nodePrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
+        uint256 extraT = nodesPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
         if (extraT > 0) {
             super._transfer(sender, address(this), extraT);
         }
 
         swapping = false;
 
-        // create node
-        for (uint256 i = 0; i < names.length; i++) {
-            nodeRewardManager.createNode(sender, names[i], cType);
-        }
+        nodeRewardManager.createNodes(sender, names, cType);
     }
 
     function cashoutReward(uint256 _nodeIndex) public {
