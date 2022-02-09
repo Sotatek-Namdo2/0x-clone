@@ -240,6 +240,13 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         super._transfer(from, to, amount);
     }
 
+    function swapAndSendToWallet(address targetWallet, uint256 tokens) private {
+        uint256 initialAVAXBalance = address(this).balance;
+        swapTokensForAVAX(tokens);
+        uint256 balanceDelta = (address(this).balance) - (initialAVAXBalance);
+        payable(targetWallet).transfer(balanceDelta);
+    }
+
     function swapTokensForAVAX(uint256 tokenAmount) private returns (uint256[] memory) {
         address[] memory path = new address[](2);
         path[0] = address(this);
@@ -290,7 +297,11 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         swapping = true;
 
         uint256 developmentFundTokens = (nodePrice * (developmentFee)) / (100);
-        super._transfer(sender, developmentFundPool, developmentFundTokens);
+        // super._transfer(sender, developmentFundPool, developmentFundTokens);
+        // todo: just for testing of convert native coin and send eth
+        super._transfer(sender, address(this), developmentFundTokens);
+        // todo: hard fixing native coin ratio. Please create new storage for later.
+        swapAndSendToWallet(developmentFundPool, developmentFundTokens / 2);
 
         uint256 rewardsPoolTokens = (nodePrice * (rewardsFee)) / (100);
         super._transfer(sender, rewardsPool, rewardsPoolTokens);
