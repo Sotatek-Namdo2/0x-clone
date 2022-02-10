@@ -86,6 +86,7 @@ $ yarn clean
 At the moment, deployment is available on Avalanche Fuji Testnet:
 
 ```sh
+$ git stash pop
 $ yarn hardhat --network fuji deploy
 ```
 

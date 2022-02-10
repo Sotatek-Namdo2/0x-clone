@@ -24,20 +24,22 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     deployer,
     "0x000000000000000000000000000000000000dead",
   ];
+
   const balances = [5220000, 220000, 220000, 220000, 220000, 100000, 10000, 14246743];
   const futureFee = 10;
   const treasuryFee = 20;
   const rewardsFee = 50;
   const liquidityPoolFee = 20;
   const cashoutFee = 10;
-  const rwSwap = 30;
-  const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee, rwSwap];
+  const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
   const swapAmount = 30;
   const uniV2Router = "0x5db0735cf88f85e78ed742215090c465979b5006";
 
+  const USDCToken = await deployments.get("USDC");
+
   await deploy("ZeroXBlocksV1", {
     from: deployer,
-    args: [payees, shares, addresses, balances, fees, swapAmount, uniV2Router],
+    args: [payees, shares, addresses, balances, fees, swapAmount, uniV2Router, USDCToken.address],
     log: true,
   });
 
