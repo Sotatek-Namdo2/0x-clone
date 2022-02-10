@@ -38,8 +38,8 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     // *************** Storage for swapping ***************
     uint256 private rwSwap;
-    bool private swapping = false;
-    bool private swapLiquify = true;
+    // bool private swapLiquify = true;
+    bool public enableAutoSwap;
     uint256 public swapTokensAmount;
 
     // *************** Blacklist storage ***************
@@ -112,6 +112,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         swapTokensAmount = swapAmount * (10**18);
 
         totalTokensPaidForMinting = 0;
+        enableAutoSwap = true;
     }
 
     // *************** WRITE functions for admin ***************
@@ -213,8 +214,12 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         payable(owner()).transfer(amount);
     }
 
-    function changeSwapLiquify(bool newVal) public onlyOwner {
-        swapLiquify = newVal;
+    // function changeSwapLiquify(bool newVal) public onlyOwner {
+    // swapLiquify = newVal;
+    // }
+
+    function changeEnableAutoSwap(bool newVal) public onlyOwner {
+        enableAutoSwap = newVal;
     }
 
     // *************** Private helpers functions ***************
@@ -244,20 +249,24 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         super._transfer(from, to, amount);
     }
 
-    function swapToAVAXAndSendToWallet(address targetWallet, uint256 tokens) private {
-        address[] memory path = new address[](2);
-        path[0] = address(this);
-        path[1] = uniswapV2Router.WAVAX();
+    function swapToAVAXIfEnabledAndSendToWallet(address targetWallet, uint256 tokens) private {
+        if (enableAutoSwap) {
+            address[] memory path = new address[](2);
+            path[0] = address(this);
+            path[1] = uniswapV2Router.WAVAX();
 
-        _approve(address(this), address(uniswapV2Router), tokens);
+            _approve(address(this), address(uniswapV2Router), tokens);
 
-        uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            tokens,
-            0, // accept any amount of AVAX
-            path,
-            targetWallet,
-            block.timestamp
-        );
+            uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                tokens,
+                0, // accept any amount of AVAX
+                path,
+                targetWallet,
+                block.timestamp
+            );
+        } else {
+            super._transfer(address(this), targetWallet, tokens);
+        }
     }
 
     // function swapToUSDCAndSendToWallet(address targetWallet, uint256 tokens) private {
@@ -308,30 +317,26 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(balanceOf(sender) >= nodesPrice, "NODE CREATION: Balance too low for creation.");
 
         // distribute to wallets
-        swapping = true;
-
         uint256 developmentFundTokens = (nodesPrice * (developmentFee)) / (100);
         super._transfer(sender, address(this), developmentFundTokens);
-        swapToAVAXAndSendToWallet(developmentFundPool, developmentFundTokens);
+        swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, developmentFundTokens);
 
         uint256 rewardsPoolTokens = (nodesPrice * (rewardsFee)) / (100);
         super._transfer(sender, rewardsPool, rewardsPoolTokens);
 
         uint256 treasuryPoolTokens = (nodesPrice * (treasuryFee)) / (100);
         super._transfer(sender, address(this), treasuryPoolTokens);
-        swapToAVAXAndSendToWallet(treasuryPool, treasuryPoolTokens);
+        swapToAVAXIfEnabledAndSendToWallet(treasuryPool, treasuryPoolTokens);
 
         uint256 liquidityTokens = (nodesPrice * (liquidityPoolFee)) / (100);
         super._transfer(sender, liquidityPool, liquidityTokens - liquidityTokens / 2);
         super._transfer(sender, address(this), liquidityTokens / 2);
-        swapToAVAXAndSendToWallet(liquidityPool, liquidityTokens / 2);
+        swapToAVAXIfEnabledAndSendToWallet(liquidityPool, liquidityTokens / 2);
 
         uint256 extraT = nodesPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
         if (extraT > 0) {
             super._transfer(sender, address(this), extraT);
         }
-
-        swapping = false;
 
         nodeRewardManager.createNodes(sender, names, cType);
     }
@@ -348,15 +353,14 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         uint256 rewardAmount = nodeRewardManager._getRewardAmountOf(sender, _nodeIndex);
         require(rewardAmount > 0, "CSHT: your reward is not ready yet");
 
-        if (swapLiquify) {
-            uint256 feeAmount;
-            if (cashoutFee > 0) {
-                feeAmount = (rewardAmount * (cashoutFee)) / (100);
-                // swapAndSendToFee(developmentFundPool, feeAmount);
-                super._transfer(rewardsPool, developmentFundPool, feeAmount);
-            }
-            rewardAmount -= feeAmount;
+        uint256 feeAmount;
+        if (cashoutFee > 0) {
+            feeAmount = (rewardAmount * (cashoutFee)) / (100);
+            super._transfer(rewardsPool, developmentFundPool, feeAmount);
+            swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, feeAmount);
         }
+        rewardAmount -= feeAmount;
+
         super._transfer(rewardsPool, sender, rewardAmount);
         nodeRewardManager._cashoutNodeReward(sender, _nodeIndex);
     }
@@ -372,15 +376,15 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         );
         uint256 rewardAmount = nodeRewardManager._getRewardAmountOf(sender);
         require(rewardAmount > 0, "MANIA CSHT: your reward is not ready yet");
-        if (swapLiquify) {
-            uint256 feeAmount;
-            if (cashoutFee > 0) {
-                feeAmount = (rewardAmount * (cashoutFee)) / (100);
-                // swapAndSendToFee(developmentFundPool, feeAmount);
-                super._transfer(rewardsPool, developmentFundPool, feeAmount);
-            }
-            rewardAmount -= feeAmount;
+
+        uint256 feeAmount;
+        if (cashoutFee > 0) {
+            feeAmount = (rewardAmount * (cashoutFee)) / (100);
+            // swapAndSendToFee(developmentFundPool, feeAmount);
+            swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, feeAmount);
         }
+
+        rewardAmount -= feeAmount;
         super._transfer(rewardsPool, sender, rewardAmount);
         nodeRewardManager._cashoutAllNodesReward(sender);
     }
