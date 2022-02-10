@@ -357,8 +357,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
             super._transfer(rewardsPool, liquidityPool, feeAmount - feeAmount / 2);
             super._transfer(rewardsPool, address(this), feeAmount / 2);
-            // swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, feeAmount);
-            swapToUSDCIfEnabledAndSendToWallet(liquidityPool, feeAmount / 2);
+            swapToAVAXIfEnabledAndSendToWallet(liquidityPool, feeAmount / 2);
         }
         rewardAmount -= feeAmount;
 
@@ -384,8 +383,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
             super._transfer(rewardsPool, liquidityPool, feeAmount - feeAmount / 2);
             super._transfer(rewardsPool, address(this), feeAmount / 2);
-            // swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, feeAmount);
-            swapToUSDCIfEnabledAndSendToWallet(liquidityPool, feeAmount / 2);
+            swapToAVAXIfEnabledAndSendToWallet(liquidityPool, feeAmount / 2);
         }
         rewardAmount -= feeAmount;
 

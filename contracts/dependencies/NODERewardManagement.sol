@@ -218,11 +218,6 @@ contract NODERewardManagement {
         return rewardNode;
     }
 
-    // todo: remove before deploy. Put here just to differ from testers' version.
-    function ping(uint256 pingNumber) external pure returns (uint256) {
-        return pingNumber;
-    }
-
     function _getNodesNames(address account) external view returns (string memory) {
         require(isNodeOwner(account), "GET NAMES: NO NODE OWNER");
         NodeEntity[] memory nodes = _nodesOfUser[account];

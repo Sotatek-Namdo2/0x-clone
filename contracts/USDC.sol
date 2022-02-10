@@ -6,10 +6,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract USDC is ERC20 {
     uint8 private immutable _decimals;
+    uint8 private version = 1;
 
     constructor() ERC20("USDC", "USDC") {
         _decimals = 6;
-        _mint(msg.sender, 5000000000 * 10**6);
+        _mint(msg.sender, 5000000 * 10**6);
     }
 
     function decimals() public view virtual override returns (uint8) {
