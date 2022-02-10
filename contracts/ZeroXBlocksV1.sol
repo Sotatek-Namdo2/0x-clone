@@ -24,7 +24,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     address public treasuryPool;
     address public rewardsPool;
     address public liquidityPool;
-    address public usdcToken = 0x5425890298aed601595a70AB815c96711a31Bc65;
 
     address public deadWallet = 0x000000000000000000000000000000000000dEaD;
 
@@ -37,10 +36,9 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     uint256 public cashoutFee;
 
     // *************** Storage for swapping ***************
-    uint256 private rwSwap;
-    // bool private swapLiquify = true;
-    bool public enableAutoSwap;
-    uint256 public swapTokensAmount;
+    bool public enableAutoSwap = true;
+    uint256 public swapTokensAmount = 0;
+    address public usdcToken;
 
     // *************** Blacklist storage ***************
     mapping(address => bool) public _isBlacklisted;
@@ -65,7 +63,8 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         uint256[] memory balances,
         uint256[] memory fees,
         uint256 swapAmount,
-        address uniV2Router
+        address uniV2Router,
+        address usdcAddr
     ) ERC20("0xBlocks v2", "0XB") PaymentSplitter(payees, shares) {
         require(addresses.length > 0 && balances.length > 0, "THERE MUST BE AT LEAST ONE ADDRESS AND BALANCES.");
 
@@ -98,7 +97,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         rewardsFee = fees[2];
         liquidityPoolFee = fees[3];
         cashoutFee = fees[4];
-        rwSwap = fees[5];
 
         totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
 
@@ -111,8 +109,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(swapAmount > 0, "`swapAmount` NEEDS TO BE POSITIVE");
         swapTokensAmount = swapAmount * (10**18);
 
-        totalTokensPaidForMinting = 0;
-        enableAutoSwap = true;
+        usdcToken = usdcAddr;
     }
 
     // *************** WRITE functions for admin ***************
@@ -195,10 +192,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         cashoutFee = value;
     }
 
-    function updateRwSwapFee(uint256 value) external onlyOwner {
-        rwSwap = value;
-    }
-
     function setAutomatedMarketMakerPair(address pair, bool value) public onlyOwner {
         require(pair != uniswapV2Pair, "TKN: The PancakeSwap pair cannot be removed from automatedMarketMakerPairs");
 
@@ -213,10 +206,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         if (amount > address(this).balance) amount = address(this).balance;
         payable(owner()).transfer(amount);
     }
-
-    // function changeSwapLiquify(bool newVal) public onlyOwner {
-    // swapLiquify = newVal;
-    // }
 
     function changeEnableAutoSwap(bool newVal) public onlyOwner {
         enableAutoSwap = newVal;
@@ -269,22 +258,26 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         }
     }
 
-    // function swapToUSDCAndSendToWallet(address targetWallet, uint256 tokens) private {
-    //     address[] memory path = new address[](3);
-    //     path[0] = address(this);
-    //     path[1] = uniswapV2Router.WAVAX();
-    //     path[2] = usdcToken;
+    function swapToUSDCIfEnabledAndSendToWallet(address targetWallet, uint256 tokens) private {
+        if (enableAutoSwap) {
+            address[] memory path = new address[](3);
+            path[0] = address(this);
+            path[1] = uniswapV2Router.WAVAX();
+            path[2] = usdcToken;
 
-    //     _approve(address(this), address(uniswapV2Router), tokens);
+            _approve(address(this), address(uniswapV2Router), tokens);
 
-    //     uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-    //         tokens,
-    //         0, // accept any amount of USDC
-    //         path,
-    //         targetWallet,
-    //         block.timestamp
-    //     );
-    // }
+            uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                tokens,
+                0, // accept any amount of USDC
+                path,
+                targetWallet,
+                block.timestamp
+            );
+        } else {
+            super._transfer(address(this), targetWallet, tokens);
+        }
+    }
 
     function swapTokensForUSDC(uint256 tokenAmount) private pure returns (uint256) {
         // todo
@@ -317,22 +310,27 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(balanceOf(sender) >= nodesPrice, "NODE CREATION: Balance too low for creation.");
 
         // distribute to wallets
+        // DEV FUND
         uint256 developmentFundTokens = (nodesPrice * (developmentFee)) / (100);
         super._transfer(sender, address(this), developmentFundTokens);
-        swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, developmentFundTokens);
+        swapToUSDCIfEnabledAndSendToWallet(developmentFundPool, developmentFundTokens);
 
+        // REWARDS POOL
         uint256 rewardsPoolTokens = (nodesPrice * (rewardsFee)) / (100);
         super._transfer(sender, rewardsPool, rewardsPoolTokens);
 
+        // TREASURY
         uint256 treasuryPoolTokens = (nodesPrice * (treasuryFee)) / (100);
         super._transfer(sender, address(this), treasuryPoolTokens);
-        swapToAVAXIfEnabledAndSendToWallet(treasuryPool, treasuryPoolTokens);
+        swapToUSDCIfEnabledAndSendToWallet(treasuryPool, treasuryPoolTokens);
 
+        // LIQUIDITY
         uint256 liquidityTokens = (nodesPrice * (liquidityPoolFee)) / (100);
         super._transfer(sender, liquidityPool, liquidityTokens - liquidityTokens / 2);
         super._transfer(sender, address(this), liquidityTokens / 2);
         swapToAVAXIfEnabledAndSendToWallet(liquidityPool, liquidityTokens / 2);
 
+        // EXTRA
         uint256 extraT = nodesPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
         if (extraT > 0) {
             super._transfer(sender, address(this), extraT);
@@ -353,11 +351,14 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         uint256 rewardAmount = nodeRewardManager._getRewardAmountOf(sender, _nodeIndex);
         require(rewardAmount > 0, "CSHT: your reward is not ready yet");
 
-        uint256 feeAmount;
+        // LIQUIDITY POOL
+        uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            super._transfer(rewardsPool, developmentFundPool, feeAmount);
-            swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, feeAmount);
+            super._transfer(rewardsPool, liquidityPool, feeAmount - feeAmount / 2);
+            super._transfer(rewardsPool, address(this), feeAmount / 2);
+            // swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, feeAmount);
+            swapToUSDCIfEnabledAndSendToWallet(liquidityPool, feeAmount / 2);
         }
         rewardAmount -= feeAmount;
 
@@ -377,14 +378,17 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         uint256 rewardAmount = nodeRewardManager._getRewardAmountOf(sender);
         require(rewardAmount > 0, "MANIA CSHT: your reward is not ready yet");
 
-        uint256 feeAmount;
+        // LIQUIDITY POOL
+        uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            // swapAndSendToFee(developmentFundPool, feeAmount);
-            swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, feeAmount);
+            super._transfer(rewardsPool, liquidityPool, feeAmount - feeAmount / 2);
+            super._transfer(rewardsPool, address(this), feeAmount / 2);
+            // swapToAVAXIfEnabledAndSendToWallet(developmentFundPool, feeAmount);
+            swapToUSDCIfEnabledAndSendToWallet(liquidityPool, feeAmount / 2);
         }
-
         rewardAmount -= feeAmount;
+
         super._transfer(rewardsPool, sender, rewardAmount);
         nodeRewardManager._cashoutAllNodesReward(sender);
     }
