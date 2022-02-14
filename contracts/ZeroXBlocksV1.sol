@@ -125,16 +125,12 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         nodeRewardManager._changeNodePrice(cType, newNodePrice);
     }
 
-    function changeRewardAPYPerNode(ContractType cType, uint256 newPrice) public onlyOwner {
-        nodeRewardManager._changeRewardAPYPerNode(cType, newPrice);
+    function changeRewardAPRPerNode(ContractType cType, int256 reducePercentage) public onlyOwner {
+        nodeRewardManager._changeRewardAPRPerNode(cType, reducePercentage);
     }
 
     function changeClaimTime(uint256 newTime) public onlyOwner {
         nodeRewardManager._changeClaimTime(newTime);
-    }
-
-    function confirmRewardUpdates() public onlyOwner returns (string memory) {
-        return nodeRewardManager._confirmRewardUpdates();
     }
 
     function updateUniswapV2Router(address newAddress) public onlyOwner {
@@ -406,8 +402,8 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager.nodePrice(cType);
     }
 
-    function getRewardAPYPerNode(ContractType cType) public view returns (uint256) {
-        return nodeRewardManager.rewardAPYPerNode(cType);
+    function getRewardAPRPerNode(ContractType cType) public view returns (uint256) {
+        return nodeRewardManager.rewardAPRPerNode(cType);
     }
 
     function getClaimTime() public view returns (uint256) {
@@ -420,10 +416,10 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager._getNodesNames(_msgSender());
     }
 
-    function getNodesInitialAPY() public view returns (string memory) {
+    function getNodesInitialAPR() public view returns (string memory) {
         require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
         require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return nodeRewardManager._getNodesInitialAPY(_msgSender());
+        return nodeRewardManager._getNodesInitialAPR(_msgSender());
     }
 
     function getNodesCreatime() public view returns (string memory) {
@@ -442,6 +438,12 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
         require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return nodeRewardManager._getNodesRewardAvailable(_msgSender());
+    }
+
+    function getNodesLastClaimTime() public view returns (string memory) {
+        require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
+        require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");
+        return nodeRewardManager._getNodesLastUpdateTime(_msgSender());
     }
 
     function getTotalCreatedNodes() public view returns (uint256) {

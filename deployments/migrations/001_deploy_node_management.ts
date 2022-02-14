@@ -24,7 +24,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     40000000000000, // Cube
     50000000000000, // Tesseract
   ];
-  const claimTime = 1;
+  const claimTime = 180; // 3 minutes
   await deploy("NODERewardManagement", {
     from: deployer,
     args: [nodePrices, rewardAPRs, claimTime],
