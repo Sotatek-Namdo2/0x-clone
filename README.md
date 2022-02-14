@@ -1,5 +1,10 @@
 # 0xB Smart Contract
 
+## ** DEV REMINDER **
+
+- Reset USDC address
+- Delete USDC token deployment
+
 ## Dev Guides
 
 ### Pre-reqs
@@ -86,7 +91,6 @@ $ yarn clean
 At the moment, deployment is available on Avalanche Fuji Testnet:
 
 ```sh
-$ git stash pop
 $ yarn hardhat --network fuji deploy
 ```
 

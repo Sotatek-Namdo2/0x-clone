@@ -14,24 +14,31 @@ contract NODERewardManagement {
 
     // -------------- Constants --------------
     uint256 public constant UNIX_YEAR = 31536000;
+    uint256 private constant HUNDRED_PERCENT = 100000000000000;
 
     // -------------- Node Structs --------------
     struct NodeEntity {
         string name;
         uint256 creationTime;
         uint256 lastUpdateTime;
-        uint256 unclaimedReward;
-        uint256 initialAPY;
+        uint256 initialAPR;
         ContractType cType;
     }
+
+    // -------------- Changes Structs --------------
+    struct APRChangesEntry {
+        uint256 timestamp;
+        int256 reducedPercentage;
+        ContractType contractType;
+    }
+    APRChangesEntry[] private aprChangesHistory;
 
     // -------------- Contract Storage --------------
     IterableMapping.Map private nodeOwners;
     mapping(address => NodeEntity[]) private _nodesOfUser;
 
     mapping(ContractType => uint256) public nodePrice;
-    mapping(ContractType => uint256) public rewardAPYPerNode;
-    mapping(ContractType => uint256) public newRewardAPYPerNode;
+    mapping(ContractType => uint256) public rewardAPRPerNode;
     uint256 public claimTime;
 
     address public admin0XB;
@@ -45,14 +52,13 @@ contract NODERewardManagement {
     // -------------- Constructor --------------
     constructor(
         uint256[] memory _nodePrices,
-        uint256[] memory _rewardAPYs,
+        uint256[] memory _rewardAPRs,
         uint256 _claimTime
     ) {
         for (uint256 i = 0; i < 3; i++) {
             nodePrice[ContractType(i)] = _nodePrices[i];
-            rewardAPYPerNode[ContractType(i)] = _rewardAPYs[i];
+            rewardAPRPerNode[ContractType(i)] = _rewardAPRs[i];
             _totalNodesPerContractType[ContractType(i)] = 0;
-            newRewardAPYPerNode[ContractType(i)] = _rewardAPYs[i];
         }
         claimTime = _claimTime;
         admin0XB = msg.sender;
@@ -82,8 +88,7 @@ contract NODERewardManagement {
                     name: nodeNames[i],
                     creationTime: block.timestamp,
                     lastUpdateTime: block.timestamp,
-                    unclaimedReward: 0,
-                    initialAPY: rewardAPYPerNode[_cType],
+                    initialAPR: rewardAPRPerNode[_cType],
                     cType: _cType
                 })
             );
@@ -94,93 +99,25 @@ contract NODERewardManagement {
         _totalNodesPerContractType[_cType] += nodeNames.length;
     }
 
-    function _cashoutNodeReward(address account, uint256 _nodeIndex) external onlySentry returns (uint256) {
-        NodeEntity[] storage nodes = _nodesOfUser[account];
-        require(_nodeIndex >= 0 && _nodeIndex < nodes.length, "NODE: Index Error");
-        NodeEntity storage node = nodes[_nodeIndex];
-        uint256 rewardNode = nodeTotalReward(node);
-        node.unclaimedReward = 0;
-        node.lastUpdateTime = block.timestamp;
-        return rewardNode;
-    }
+    function _cashoutNodeReward(address account, uint256 _nodeIndex) external onlySentry returns (uint256) {}
 
-    function _cashoutAllNodesReward(address account) external onlySentry returns (uint256) {
-        NodeEntity[] storage nodes = _nodesOfUser[account];
-        uint256 nodesCount = nodes.length;
-        require(nodesCount > 0, "CASHOUT ERROR: You don't have nodes to cash-out");
-        NodeEntity storage _node;
-        uint256 rewardsTotal = 0;
-        for (uint256 i = 0; i < nodesCount; i++) {
-            _node = nodes[i];
-            rewardsTotal += nodeTotalReward(_node);
-            _node.unclaimedReward = 0;
-            _node.lastUpdateTime = block.timestamp;
-        }
-        return rewardsTotal;
-    }
+    function _cashoutAllNodesReward(address account) external onlySentry returns (uint256) {}
 
     function _changeNodePrice(ContractType _cType, uint256 newNodePrice) external onlySentry {
         nodePrice[_cType] = newNodePrice;
     }
 
-    function _changeRewardAPYPerNode(ContractType _cType, uint256 newPrice) external onlySentry {
-        newRewardAPYPerNode[_cType] = newPrice;
+    function _changeRewardAPRPerNode(ContractType _cType, int256 reducedPercentage) external onlySentry {
+        uint256 newPercentage = uint256(int256(HUNDRED_PERCENT) - reducedPercentage);
+        uint256 newAPR = rewardAPRPerNode[_cType] * newPercentage;
+        rewardAPRPerNode[_cType] = newAPR;
+        aprChangesHistory.push(
+            APRChangesEntry({ timestamp: block.timestamp, reducedPercentage: reducedPercentage, contractType: _cType })
+        );
     }
 
     function _changeClaimTime(uint256 newTime) external onlySentry {
         claimTime = newTime;
-    }
-
-    function _confirmRewardUpdates() external onlySentry returns (string memory) {
-        require(
-            rewardAPYPerNode[ContractType.Square] != newRewardAPYPerNode[ContractType.Square] ||
-                rewardAPYPerNode[ContractType.Cube] != newRewardAPYPerNode[ContractType.Cube] ||
-                rewardAPYPerNode[ContractType.Tesseract] != newRewardAPYPerNode[ContractType.Tesseract],
-            "CONFIRM RW: No changes made"
-        );
-
-        // TODO: resolve gas problem when scaling up;
-        for (uint256 i = 0; i < nodeOwners.size(); i++) {
-            address account = nodeOwners.getKeyAtIndex(i);
-
-            NodeEntity[] storage nodes = _nodesOfUser[account];
-            uint256 nodesCount = nodes.length;
-            for (uint256 j = 0; j < nodesCount; j++) {
-                NodeEntity storage node = nodes[j];
-                uint256 reward = nodeTotalReward(node);
-                node.lastUpdateTime = block.timestamp;
-
-                node.unclaimedReward += reward;
-            }
-        }
-        string memory result = "CHANGES MADE: |";
-        if (rewardAPYPerNode[ContractType.Square] != newRewardAPYPerNode[ContractType.Square]) {
-            rewardAPYPerNode[ContractType.Square] = newRewardAPYPerNode[ContractType.Square];
-            result = string(
-                abi.encodePacked(
-                    "rewardAPYPerNode[Square] <= ",
-                    uint2str(newRewardAPYPerNode[ContractType.Square]),
-                    "|"
-                )
-            );
-        }
-        if (rewardAPYPerNode[ContractType.Cube] != newRewardAPYPerNode[ContractType.Cube]) {
-            rewardAPYPerNode[ContractType.Cube] = newRewardAPYPerNode[ContractType.Cube];
-            result = string(
-                abi.encodePacked("rewardAPYPerNode[Cube] <= ", uint2str(newRewardAPYPerNode[ContractType.Cube]), "|")
-            );
-        }
-        if (rewardAPYPerNode[ContractType.Tesseract] != newRewardAPYPerNode[ContractType.Tesseract]) {
-            rewardAPYPerNode[ContractType.Tesseract] = newRewardAPYPerNode[ContractType.Tesseract];
-            result = string(
-                abi.encodePacked(
-                    "rewardAPYPerNode[Tesseract] <= ",
-                    uint2str(newRewardAPYPerNode[ContractType.Tesseract]),
-                    "|"
-                )
-            );
-        }
-        return result;
     }
 
     // -------------- External READ functions --------------
@@ -262,17 +199,17 @@ contract NODERewardManagement {
         return _types;
     }
 
-    function _getNodesInitialAPY(address account) external view returns (string memory) {
+    function _getNodesInitialAPR(address account) external view returns (string memory) {
         require(isNodeOwner(account), "GET CREATIME: NO NODE OWNER");
         NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
         NodeEntity memory _node;
-        string memory _types = uint2str(nodes[0].initialAPY);
+        string memory _types = uint2str(nodes[0].initialAPR);
         string memory separator = "#";
 
         for (uint256 i = 1; i < nodesCount; i++) {
             _node = nodes[i];
-            _types = string(abi.encodePacked(_types, separator, uint2str(_node.initialAPY)));
+            _types = string(abi.encodePacked(_types, separator, uint2str(_node.initialAPR)));
         }
         return _types;
     }
@@ -313,16 +250,9 @@ contract NODERewardManagement {
     }
 
     // -------------- Private/Internal Helpers --------------
-    function nodeTotalReward(NodeEntity memory node) private view returns (uint256) {
-        return nodeRewardSinceLastUpdate(node) + node.unclaimedReward;
-    }
+    function nodeTotalReward(NodeEntity memory node) private view returns (uint256) {}
 
-    function nodeRewardSinceLastUpdate(NodeEntity memory node) private view returns (uint256) {
-        uint256 delta = block.timestamp - node.lastUpdateTime;
-        uint256 rewardAPY = rewardAPYPerNode[node.cType];
-        uint256 result = (rewardAPY / UNIX_YEAR) * delta;
-        return result;
-    }
+    function nodeRewardSinceLastUpdate(NodeEntity memory node) private view returns (uint256) {}
 
     function claimable(NodeEntity memory node) private view returns (bool) {
         return node.lastUpdateTime + claimTime <= block.timestamp;

@@ -19,7 +19,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     utils.parseEther("30"), // Tesseract
   ];
 
-  const rewardAPYs = [
+  const rewardAPRs = [
     25000000000000, // Square
     40000000000000, // Cube
     50000000000000, // Tesseract
@@ -27,7 +27,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const claimTime = 1;
   await deploy("NODERewardManagement", {
     from: deployer,
-    args: [nodePrices, rewardAPYs, claimTime],
+    args: [nodePrices, rewardAPRs, claimTime],
     log: true,
   });
 };
