@@ -24,7 +24,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     400_000_000, // Cube
     500_000_000, // Tesseract
   ];
-  const autoReduceAPRRate = 3000000000000;
+  const autoReduceAPRRate = 30_000_000;
   const claimTime = 180; // 3 minutes
   await deploy("NODERewardManagement", {
     from: deployer,
