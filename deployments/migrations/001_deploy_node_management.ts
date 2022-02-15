@@ -20,14 +20,15 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   ];
 
   const rewardAPRs = [
-    25000000000000, // Square
-    40000000000000, // Cube
-    50000000000000, // Tesseract
+    250_000_000, // Square
+    400_000_000, // Cube
+    500_000_000, // Tesseract
   ];
+  const autoReduceAPRRate = 3000000000000;
   const claimTime = 180; // 3 minutes
   await deploy("NODERewardManagement", {
     from: deployer,
-    args: [nodePrices, rewardAPRs, claimTime],
+    args: [nodePrices, rewardAPRs, claimTime, autoReduceAPRRate],
     log: true,
   });
 };

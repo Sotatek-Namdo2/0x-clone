@@ -13,8 +13,8 @@ contract NODERewardManagement {
     using IterableMapping for IterableMapping.Map;
 
     // -------------- Constants --------------
-    uint256 public constant UNIX_YEAR = 31536000;
-    uint256 private constant HUNDRED_PERCENT = 10000000000000;
+    uint256 private constant UNIX_YEAR = 31_536_000;
+    uint256 private constant HUNDRED_PERCENT = 100_000_000;
 
     // -------------- Node Structs --------------
     struct NodeEntity {
@@ -40,11 +40,11 @@ contract NODERewardManagement {
     mapping(ContractType => uint256) public rewardAPRPerNode;
     mapping(ContractType => APRChangesEntry[]) private aprChangesHistory;
     uint256 public claimTime;
+    uint256 public autoReduceAPRPeriod = UNIX_YEAR;
+    uint256 public autoReduceAPRRate;
 
     address public admin0XB;
     address public token;
-
-    bool public distribution = false;
 
     uint256 public totalNodesCreated = 0;
     mapping(ContractType => uint256) private _totalNodesPerContractType;
@@ -53,7 +53,8 @@ contract NODERewardManagement {
     constructor(
         uint256[] memory _nodePrices,
         uint256[] memory _rewardAPRs,
-        uint256 _claimTime
+        uint256 _claimTime,
+        uint256 _autoReduceAPRRate
     ) {
         uint256 initialTimestamp = block.timestamp;
         for (uint256 i = 0; i < 3; i++) {
@@ -67,6 +68,7 @@ contract NODERewardManagement {
         }
         claimTime = _claimTime;
         admin0XB = msg.sender;
+        autoReduceAPRRate = _autoReduceAPRRate;
     }
 
     // -------------- Modifier (filter) --------------
@@ -131,7 +133,7 @@ contract NODERewardManagement {
             }
         }
 
-        require(claimable(latestClaim), "CASHOUT ERROR: You have to wait 3 minutes before claiming all nodes.");
+        require(claimable(latestClaim), "CASHOUT ERROR: You have to wait before claiming all nodes.");
 
         for (uint256 i = 0; i < nodesCount; i++) {
             _node = nodes[i];
@@ -154,6 +156,14 @@ contract NODERewardManagement {
 
     function _changeClaimTime(uint256 newTime) external onlySentry {
         claimTime = newTime;
+    }
+
+    function _changeAutoReduceAPRPeriod(uint256 newPeriod) external onlySentry {
+        autoReduceAPRPeriod = newPeriod;
+    }
+
+    function _changeAutoReduceAPRRate(uint256 newRate) external onlySentry {
+        autoReduceAPRRate = newRate;
     }
 
     // -------------- External READ functions --------------
@@ -286,16 +296,36 @@ contract NODERewardManagement {
     }
 
     // -------------- Private/Internal Helpers --------------
-    function nodeTotalReward(NodeEntity memory node, uint256 curTimestamp) private view returns (uint256) {
-        uint256 nodeLastUpdate = node.lastUpdateTime;
-        ContractType _cType = node.cType;
+    function historyBinarySearch(ContractType _cType, uint256 timestamp) private view returns (uint256) {
         uint256 leftIndex = 0;
         uint256 rightIndex = aprChangesHistory[_cType].length;
         while (rightIndex > leftIndex) {
             uint256 mid = (leftIndex + rightIndex) / 2;
-            if (aprChangesHistory[_cType][mid].timestamp < nodeLastUpdate) leftIndex = mid + 1;
+            if (aprChangesHistory[_cType][mid].timestamp < timestamp) leftIndex = mid + 1;
             else rightIndex = mid;
         }
+        return leftIndex;
+    }
+
+    // function nodeAPR(NodeEntity memory node) private view returns (uint256) {
+    //     uint256 creatime = node.creationTime;
+    //     ContractType cType = node.cType;
+    //     uint256 startIndex = historyBinarySearch(cType, creatime);
+    //     uint256 resultAPR = node.initialAPR;
+    //     for (uint256 i = startIndex; i < aprChangesHistory[cType].length; i++) {
+    //         resultAPR = reduceByPercent(resultAPR, aprChangesHistory[cType][i].reducedPercentage);
+    //     }
+    //     uint256 periodCount = fullPeriodCount(block.timestamp, creatime);
+    //     while (periodCount > 0) {
+    //         periodCount --;
+    //         reduceByPercent(resultAPR, int256(autoReduceAPRRate));
+    //     }
+    //     return resultAPR;
+    // }
+
+    function nodeTotalReward(NodeEntity memory node, uint256 curTimestamp) private view returns (uint256) {
+        ContractType _cType = node.cType;
+        uint256 leftIndex = historyBinarySearch(_cType, node.lastUpdateTime);
 
         uint256 nodeBuyPrice = node.buyPrice;
         uint256 iteratingAPR = node.initialAPR;
@@ -304,21 +334,47 @@ contract NODERewardManagement {
         uint256 result = 0;
         uint256 deltaTimestamp;
         uint256 periodReward;
+        uint256 creatime = node.creationTime;
+        bool diffPeriod;
         for (uint256 index = leftIndex; index < aprChangesHistory[_cType].length; index++) {
             nextTimestamp = aprChangesHistory[_cType][index].timestamp;
+            diffPeriod = (fullPeriodCount(nextTimestamp, creatime) != fullPeriodCount(iteratingTimestamp, creatime));
+            if (diffPeriod) {
+                nextTimestamp = creatime + autoReduceAPRPeriod * (fullPeriodCount(iteratingTimestamp, creatime) + 1);
+            }
             deltaTimestamp = nextTimestamp - iteratingTimestamp;
             periodReward = (((nodeBuyPrice * iteratingAPR) / HUNDRED_PERCENT) * deltaTimestamp) / UNIX_YEAR;
-
+            iteratingTimestamp = nextTimestamp;
             result += periodReward;
 
-            iteratingAPR = reduceByPercent(iteratingAPR, aprChangesHistory[_cType][index].reducedPercentage);
-            iteratingTimestamp = nextTimestamp;
+            if (diffPeriod) {
+                iteratingAPR = reduceByPercent(iteratingAPR, int256(autoReduceAPRRate));
+                index--;
+            } else {
+                iteratingAPR = reduceByPercent(iteratingAPR, aprChangesHistory[_cType][index].reducedPercentage);
+            }
         }
-        nextTimestamp = curTimestamp;
-        deltaTimestamp = nextTimestamp - iteratingTimestamp;
-        periodReward = (((nodeBuyPrice * iteratingAPR) / HUNDRED_PERCENT) * deltaTimestamp) / UNIX_YEAR;
-        result += periodReward;
+
+        while (iteratingTimestamp != curTimestamp) {
+            nextTimestamp = curTimestamp;
+            diffPeriod = (fullPeriodCount(nextTimestamp, creatime) != fullPeriodCount(iteratingTimestamp, creatime));
+            if (diffPeriod) {
+                nextTimestamp = creatime + autoReduceAPRPeriod * (fullPeriodCount(iteratingTimestamp, creatime) + 1);
+            }
+            deltaTimestamp = nextTimestamp - iteratingTimestamp;
+            periodReward = (((nodeBuyPrice * iteratingAPR) / HUNDRED_PERCENT) * deltaTimestamp) / UNIX_YEAR;
+            iteratingTimestamp = nextTimestamp;
+            result += periodReward;
+
+            if (diffPeriod) {
+                iteratingAPR = reduceByPercent(iteratingAPR, int256(autoReduceAPRRate));
+            }
+        }
         return result;
+    }
+
+    function fullPeriodCount(uint256 input, uint256 creatime) private view returns (uint256) {
+        return (input - creatime) / autoReduceAPRPeriod;
     }
 
     function claimable(uint256 lastUpdateTime) private view returns (bool) {
