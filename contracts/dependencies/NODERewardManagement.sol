@@ -14,7 +14,7 @@ contract NODERewardManagement {
 
     // -------------- Constants --------------
     uint256 public constant UNIX_YEAR = 31536000;
-    uint256 private constant HUNDRED_PERCENT = 100000000000000;
+    uint256 private constant HUNDRED_PERCENT = 10000000000000;
 
     // -------------- Node Structs --------------
     struct NodeEntity {
@@ -167,11 +167,10 @@ contract NODERewardManagement {
 
     function _getRewardAmountOf(address account) external view returns (uint256) {
         require(isNodeOwner(account), "GET REWARD OF: NO NODE OWNER");
-        uint256 nodesCount;
         uint256 rewardCount = 0;
 
         NodeEntity[] memory nodes = _nodesOfUser[account];
-        nodesCount = nodes.length;
+        uint256 nodesCount = nodes.length;
         uint256 currentTimestamp = block.timestamp;
 
         for (uint256 i = 0; i < nodesCount; i++) {
@@ -308,7 +307,7 @@ contract NODERewardManagement {
         for (uint256 index = leftIndex; index < aprChangesHistory[_cType].length; index++) {
             nextTimestamp = aprChangesHistory[_cType][index].timestamp;
             deltaTimestamp = nextTimestamp - iteratingTimestamp;
-            periodReward = (nodeBuyPrice * iteratingAPR * deltaTimestamp) / UNIX_YEAR;
+            periodReward = (((nodeBuyPrice * iteratingAPR) / HUNDRED_PERCENT) * deltaTimestamp) / UNIX_YEAR;
 
             result += periodReward;
 
@@ -317,7 +316,7 @@ contract NODERewardManagement {
         }
         nextTimestamp = curTimestamp;
         deltaTimestamp = nextTimestamp - iteratingTimestamp;
-        periodReward = (nodeBuyPrice * iteratingAPR * deltaTimestamp) / UNIX_YEAR;
+        periodReward = (((nodeBuyPrice * iteratingAPR) / HUNDRED_PERCENT) * deltaTimestamp) / UNIX_YEAR;
         result += periodReward;
         return result;
     }

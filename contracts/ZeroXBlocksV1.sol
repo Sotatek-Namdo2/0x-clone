@@ -275,11 +275,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         }
     }
 
-    function swapTokensForUSDC(uint256 tokenAmount) private pure returns (uint256) {
-        // todo
-        return tokenAmount;
-    }
-
     // *************** WRITE functions for public ***************
     function createMultipleNodesWithTokens(string[] memory names, ContractType cType) public {
         for (uint256 i = 0; i < names.length; i++) {
