@@ -39,7 +39,7 @@ contract NODERewardManagement {
     mapping(ContractType => uint256) public nodePrice;
     mapping(ContractType => uint256) public rewardAPRPerNode;
     mapping(ContractType => APRChangesEntry[]) private aprChangesHistory;
-    uint256 public claimTime;
+    uint256 public cashoutTimeout;
     uint256 public autoReduceAPRInterval = UNIX_YEAR;
     uint256 public autoReduceAPRRate;
 
@@ -53,7 +53,7 @@ contract NODERewardManagement {
     constructor(
         uint256[] memory _nodePrices,
         uint256[] memory _rewardAPRs,
-        uint256 _claimTime,
+        uint256 _cashoutTimeout,
         uint256 _autoReduceAPRRate
     ) {
         uint256 initialTimestamp = block.timestamp;
@@ -66,7 +66,7 @@ contract NODERewardManagement {
                 APRChangesEntry({ timestamp: initialTimestamp, reducedPercentage: 0 })
             );
         }
-        claimTime = _claimTime;
+        cashoutTimeout = _cashoutTimeout;
         admin0XB = msg.sender;
         autoReduceAPRRate = _autoReduceAPRRate;
     }
@@ -111,9 +111,9 @@ contract NODERewardManagement {
         NodeEntity[] storage nodes = _nodesOfUser[account];
         require(_nodeIndex >= 0 && _nodeIndex < nodes.length, "NODE: Index Error");
         NodeEntity storage node = nodes[_nodeIndex];
-        require(claimable(node.lastUpdateTime), "CASHOUT ERROR: You have to wait 3 minutes before claiming this node.");
+        require(claimable(node.lastUpdateTime), "CASHOUT ERROR: You have to wait before claiming this node.");
         uint256 currentTimestamp = block.timestamp;
-        uint256 rewardNode = nodeTotalReward(node, currentTimestamp);
+        uint256 rewardNode = nodeCurrentReward(node, currentTimestamp);
         node.lastUpdateTime = currentTimestamp;
         return rewardNode;
     }
@@ -125,19 +125,19 @@ contract NODERewardManagement {
         NodeEntity storage _node;
         uint256 rewardsTotal = 0;
         uint256 currentTimestamp = block.timestamp;
-        uint256 latestClaim = 0;
+        uint256 latestCashout = 0;
         for (uint256 i = 0; i < nodesCount; i++) {
             uint256 lastUpd = nodes[i].lastUpdateTime;
-            if (lastUpd > latestClaim) {
-                latestClaim = lastUpd;
+            if (lastUpd > latestCashout) {
+                latestCashout = lastUpd;
             }
         }
 
-        require(claimable(latestClaim), "CASHOUT ERROR: You have to wait before claiming all nodes.");
+        require(claimable(latestCashout), "CASHOUT ERROR: You have to wait before claiming all nodes.");
 
         for (uint256 i = 0; i < nodesCount; i++) {
             _node = nodes[i];
-            rewardsTotal += nodeTotalReward(_node, currentTimestamp);
+            rewardsTotal += nodeCurrentReward(_node, currentTimestamp);
             _node.lastUpdateTime = currentTimestamp;
         }
         return rewardsTotal;
@@ -154,8 +154,8 @@ contract NODERewardManagement {
         );
     }
 
-    function _changeClaimTime(uint256 newTime) external onlySentry {
-        claimTime = newTime;
+    function _changeCashoutTimeout(uint256 newTime) external onlySentry {
+        cashoutTimeout = newTime;
     }
 
     function _changeAutoReduceAPRInterval(uint256 newInterval) external onlySentry {
@@ -185,7 +185,7 @@ contract NODERewardManagement {
 
         for (uint256 i = 0; i < nodesCount; i++) {
             NodeEntity memory _node = nodes[i];
-            rewardCount += nodeTotalReward(_node, currentTimestamp);
+            rewardCount += nodeCurrentReward(_node, currentTimestamp);
         }
 
         return rewardCount;
@@ -197,7 +197,7 @@ contract NODERewardManagement {
         uint256 numberOfNodes = nodes.length;
         require(_nodeIndex >= 0 && _nodeIndex < numberOfNodes, "NODE: Node index is improper");
         NodeEntity memory node = nodes[_nodeIndex];
-        uint256 rewardNode = nodeTotalReward(node, block.timestamp);
+        uint256 rewardNode = nodeCurrentReward(node, block.timestamp);
         return rewardNode;
     }
 
@@ -280,11 +280,11 @@ contract NODERewardManagement {
         NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
         uint256 currentTimestamp = block.timestamp;
-        string memory _rewardsAvailable = uint2str(nodeTotalReward(nodes[0], currentTimestamp));
+        string memory _rewardsAvailable = uint2str(nodeCurrentReward(nodes[0], currentTimestamp));
         string memory separator = "#";
         for (uint256 i = 1; i < nodesCount; i++) {
             _rewardsAvailable = string(
-                abi.encodePacked(_rewardsAvailable, separator, uint2str(nodeTotalReward(nodes[i], currentTimestamp)))
+                abi.encodePacked(_rewardsAvailable, separator, uint2str(nodeCurrentReward(nodes[i], currentTimestamp)))
             );
         }
         return _rewardsAvailable;
@@ -333,12 +333,12 @@ contract NODERewardManagement {
         uint256 intervalCount = fullIntervalCount(block.timestamp, creatime);
         while (intervalCount > 0) {
             intervalCount--;
-            reduceByPercent(resultAPR, int256(autoReduceAPRRate));
+            resultAPR = reduceByPercent(resultAPR, int256(autoReduceAPRRate));
         }
         return resultAPR;
     }
 
-    function nodeTotalReward(NodeEntity memory node, uint256 curTimestamp) private view returns (uint256) {
+    function nodeCurrentReward(NodeEntity memory node, uint256 curTimestamp) private view returns (uint256) {
         ContractType _cType = node.cType;
         uint256 leftIndex = historyBinarySearch(_cType, node.lastUpdateTime);
 
@@ -393,7 +393,7 @@ contract NODERewardManagement {
     }
 
     function claimable(uint256 lastUpdateTime) private view returns (bool) {
-        return lastUpdateTime + claimTime <= block.timestamp;
+        return lastUpdateTime + cashoutTimeout <= block.timestamp;
     }
 
     function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {

@@ -14,6 +14,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     IJoeRouter02 public uniswapV2Router;
 
     uint256 public ownedNodesCountLimit = 100;
+    uint256 private mintNodeLimit = 10;
 
     address public uniswapV2Pair;
 
@@ -121,16 +122,16 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         nodeRewardManager = NODERewardManagement(nodeManagement);
     }
 
-    function changeNodePrice(ContractType cType, uint256 newNodePrice) public onlyOwner {
-        nodeRewardManager._changeNodePrice(cType, newNodePrice);
+    function changeNodePrice(ContractType contractType, uint256 newNodePrice) public onlyOwner {
+        nodeRewardManager._changeNodePrice(contractType, newNodePrice);
     }
 
-    function changeRewardAPRPerNode(ContractType cType, int256 reducePercentage) public onlyOwner {
-        nodeRewardManager._changeRewardAPRPerNode(cType, reducePercentage);
+    function changeRewardAPRPerNode(ContractType contractType, int256 reducePercentage) public onlyOwner {
+        nodeRewardManager._changeRewardAPRPerNode(contractType, reducePercentage);
     }
 
-    function changeClaimTime(uint256 newTime) public onlyOwner {
-        nodeRewardManager._changeClaimTime(newTime);
+    function changeCashoutTimeout(uint256 newTime) public onlyOwner {
+        nodeRewardManager._changeCashoutTimeout(newTime);
     }
 
     function updateUniswapV2Router(address newAddress) public onlyOwner {
@@ -148,43 +149,52 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         swapTokensAmount = newVal;
     }
 
-    function updateDevelopmentFundWall(address payable wall) external onlyOwner {
+    function updateDevelopmentFundWallet(address payable wall) external onlyOwner {
         developmentFundPool = wall;
     }
 
-    function updateLiquidityWall(address payable wall) external onlyOwner {
+    function updateLiquidityWallet(address payable wall) external onlyOwner {
         liquidityPool = wall;
     }
 
-    function updateRewardsWall(address payable wall) external onlyOwner {
+    function updateRewardsWallet(address payable wall) external onlyOwner {
         rewardsPool = wall;
     }
 
-    function updateTreasuryWall(address payable wall) external onlyOwner {
+    function updateTreasuryWallet(address payable wall) external onlyOwner {
         treasuryPool = wall;
     }
 
     function updateRewardsFee(uint256 value) external onlyOwner {
+        uint256 newTotalFee = (liquidityPoolFee) + (developmentFee) + treasuryFee + value;
+        require(newTotalFee <= 100, "UPDATE FEES: total fee percentage exceeding 100%");
         rewardsFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
+        totalFees = newTotalFee;
     }
 
     function updateLiquidityFee(uint256 value) external onlyOwner {
+        uint256 newTotalFee = rewardsFee + (developmentFee) + treasuryFee + value;
+        require(newTotalFee <= 100, "UPDATE FEES: total fee percentage exceeding 100%");
         liquidityPoolFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
+        totalFees = newTotalFee;
     }
 
     function updateDevelopmentFee(uint256 value) external onlyOwner {
+        uint256 newTotalFee = rewardsFee + (liquidityPoolFee) + treasuryFee + value;
+        require(newTotalFee <= 100, "UPDATE FEES: total fee percentage exceeding 100%");
         developmentFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
+        totalFees = newTotalFee;
     }
 
     function updateTreasuryFee(uint256 value) external onlyOwner {
+        uint256 newTotalFee = rewardsFee + (liquidityPoolFee) + (developmentFee) + value;
+        require(newTotalFee <= 100, "UPDATE FEES: total fee percentage exceeding 100%");
         treasuryFee = value;
-        totalFees = rewardsFee + (liquidityPoolFee) + (developmentFee) + treasuryFee;
+        totalFees = newTotalFee;
     }
 
     function updateCashoutFee(uint256 value) external onlyOwner {
+        require(value <= 100, "UPDATE FEES: cashout percentage exceeding 100%");
         cashoutFee = value;
     }
 
@@ -194,13 +204,8 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         _setAutomatedMarketMakerPair(pair, value);
     }
 
-    function blacklistMalicious(address account, bool value) external onlyOwner {
+    function setBlacklistStatus(address account, bool value) external onlyOwner {
         _isBlacklisted[account] = value;
-    }
-
-    function boostReward(uint256 amount) public onlyOwner {
-        if (amount > address(this).balance) amount = address(this).balance;
-        payable(owner()).transfer(amount);
     }
 
     function changeEnableAutoSwap(bool newVal) public onlyOwner {
@@ -227,8 +232,6 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         address to,
         uint256 amount
     ) internal override {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
 
         super._transfer(from, to, amount);
@@ -276,11 +279,12 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     }
 
     // *************** WRITE functions for public ***************
-    function createMultipleNodesWithTokens(string[] memory names, ContractType cType) public {
+    function mintNodes(string[] memory names, ContractType contractType) public {
+        require(names.length <= mintNodeLimit, "NODE CREATION: too many nodes created at the same time");
         for (uint256 i = 0; i < names.length; i++) {
             require(
                 bytes(names[i]).length > 3 && bytes(names[i]).length < 33,
-                "NODE CREATION: node name must be between 4 and 32 characters"
+                "NODE CREATION: node name must have proper amount of characters"
             );
         }
 
@@ -296,7 +300,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             nodeCount + names.length <= ownedNodesCountLimit,
             "NODE CREATION: address reached limit of owned nodes"
         );
-        uint256 nodesPrice = nodeRewardManager.nodePrice(cType) * names.length;
+        uint256 nodesPrice = nodeRewardManager.nodePrice(contractType) * names.length;
         totalTokensPaidForMinting += nodesPrice;
         require(balanceOf(sender) >= nodesPrice, "NODE CREATION: Balance too low for creation.");
 
@@ -327,7 +331,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
             super._transfer(sender, address(this), extraT);
         }
 
-        nodeRewardManager.createNodes(sender, names, cType);
+        nodeRewardManager.createNodes(sender, names, contractType);
     }
 
     function cashoutReward(uint256 _nodeIndex) public {
@@ -393,16 +397,16 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager._getRewardAmountOf(_msgSender());
     }
 
-    function getNodePrice(ContractType cType) public view returns (uint256) {
-        return nodeRewardManager.nodePrice(cType);
+    function getNodePrice(ContractType contractType) public view returns (uint256) {
+        return nodeRewardManager.nodePrice(contractType);
     }
 
-    function getRewardAPRPerNode(ContractType cType) public view returns (uint256) {
-        return nodeRewardManager.rewardAPRPerNode(cType);
+    function getRewardAPRPerNode(ContractType contractType) public view returns (uint256) {
+        return nodeRewardManager.rewardAPRPerNode(contractType);
     }
 
-    function getClaimTime() public view returns (uint256) {
-        return nodeRewardManager.claimTime();
+    function getCashoutTimeout() public view returns (uint256) {
+        return nodeRewardManager.cashoutTimeout();
     }
 
     function getNodesNames() public view returns (string memory) {
@@ -441,7 +445,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         return nodeRewardManager._getNodesRewardAvailable(_msgSender());
     }
 
-    function getNodesLastClaimTime() public view returns (string memory) {
+    function getNodesLastCashoutTime() public view returns (string memory) {
         require(_msgSender() != address(0), "SENDER CAN'T BE ZERO");
         require(nodeRewardManager._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return nodeRewardManager._getNodesLastUpdateTime(_msgSender());

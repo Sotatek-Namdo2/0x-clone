@@ -37,11 +37,11 @@ describe("0xB", () => {
       40000000000000, // Cube
       50000000000000, // Tesseract
     ];
-    const claimTime = 1;
+    const cashoutTimeout = 1;
     const nodeRewardManagement = (await NODERewardManagement.deploy(
       nodePrices,
       rewardAPYs,
-      claimTime,
+      cashoutTimeout,
     )) as NODERewardManagement;
     return { nodeRewardManagement };
   };
