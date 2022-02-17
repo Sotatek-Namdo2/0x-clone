@@ -55,6 +55,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     // *************** Enable Cashout ***************
     bool public enableCashout = true;
+    bool public enableMintNodes = true;
 
     // *************** Constructor ***************
     constructor(
@@ -116,6 +117,10 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
     // *************** WRITE functions for admin ***************
     function setEnableCashout(bool _enableCashout) external onlyOwner {
         enableCashout = _enableCashout;
+    }
+
+    function setEnableMintNodes(bool value) external onlyOwner {
+        enableMintNodes = value;
     }
 
     function setNodeManagement(address nodeManagement) external onlyOwner {
@@ -280,6 +285,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
     // *************** WRITE functions for public ***************
     function mintNodes(string[] memory names, ContractType contractType) public {
+        require(enableMintNodes, "NODE CREATION: mint nodes disabled");
         require(names.length <= mintNodeLimit, "NODE CREATION: too many nodes created at the same time");
         for (uint256 i = 0; i < names.length; i++) {
             require(
