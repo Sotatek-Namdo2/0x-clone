@@ -64,10 +64,9 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         address[] memory addresses,
         uint256[] memory balances,
         uint256[] memory fees,
-        uint256 swapAmount,
         address uniV2Router,
         address usdcAddr
-    ) ERC20("0xBlocks v2", "0XB") PaymentSplitter(payees, shares) {
+    ) ERC20("0xBlocks v1", "0XB") PaymentSplitter(payees, shares) {
         require(addresses.length > 0 && balances.length > 0, "THERE MUST BE AT LEAST ONE ADDRESS AND BALANCES.");
 
         developmentFundPool = addresses[1];
@@ -107,9 +106,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
         for (uint256 i = 0; i < addresses.length; i++) {
             _mint(addresses[i], balances[i] * (10**18));
         }
-        require(totalSupply() == 20456743e18, "`totalSupply` NEEDS TO EQUAL 20 MILLIONS");
-        require(swapAmount > 0, "`swapAmount` NEEDS TO BE POSITIVE");
-        swapTokensAmount = swapAmount * (10**18);
+        require(totalSupply() == 1012345e18, "`totalSupply` NEEDS TO EQUAL 20 MILLIONS");
 
         usdcToken = usdcAddr;
     }
@@ -250,7 +247,7 @@ contract ZeroXBlocksV1 is ERC20, Ownable, PaymentSplitter {
 
             _approve(address(this), address(uniswapV2Router), tokens);
 
-            uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
                 tokens,
                 0, // accept any amount of AVAX
                 path,

@@ -103,16 +103,17 @@ describe("0xB", () => {
     const cashoutFee = 10;
     const rwSwap = 30;
     const fees = [futureFee, rewardsFee, liquidityPoolFee, cashoutFee, rwSwap];
-    const swapAmount = 30;
     const uniV2Router = joeRouter.address;
+    const USDCToken = "0x2aa53D89Bc2453b163ee6376278A545C8b3DaB52"; // fake USDC Address on testnet
     const zeroXBlocks = (await ZeroXBlocksV1.deploy(
+      [deployerAddress],
       payees,
       shares,
       addresses,
       balances,
       fees,
-      swapAmount,
       uniV2Router,
+      USDCToken,
     )) as ZeroXBlocksV1;
 
     await nodeRewardManagement.setToken(zeroXBlocks.address);
