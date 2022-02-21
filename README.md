@@ -1,9 +1,27 @@
 # 0xB Smart Contract
 
-## ** DEV REMINDER **
+## Project Guides
 
-- Reset USDC address
-- Delete USDC token deployment
+### Smart Contract (solidity)
+
+The smart contract code is divided into 2 parts:
+
+- `contracts/ZeroXBlocksV1.sol`: Main functionalities, contains all ABI methods to interact.
+  Most non-heavy features are written here (transferring, toggling auto-swap, blacklisting, ...)
+
+- `contracts/dependencies/NODERewardManagement.sol`: Take care of nodes storage and reward
+  calculation.
+
+- `contracts/USDC.sol`: A mock USDC ERC20-token. Use for testnet only.
+
+### Deployments (typescript)
+
+- `deployments/migrations/001_deploy_node_management.ts`
+- `deployments/migrations/002_deploy_0xB.ts`
+
+### Unit test
+
+- `test/0xB.spec.ts`
 
 ## Dev Guides
 
@@ -88,12 +106,17 @@ $ yarn clean
 
 ### Deployment
 
-At the moment, deployment is available on Avalanche Fuji Testnet:
+At the moment, testnet deployment is available on Avalanche Fuji Testnet:
 
 ```sh
 $ yarn hardhat --network fuji deploy
 ```
 
+Verify code and display functions on testnet UI:
+
 ```sh
-$ yarn hardhat etherscan-verify --api-key 9N3X4BWMBQI9F7N7GQ96V9QIWK9GR3KEYG --network fuji --license MIT
+yarn hardhat etherscan-verify --api-key <your-api-key> --network fuji --license MIT
 ```
+
+The API keys can be found on API-KEYS on snowtrace.io account settings. Create an account
+on snowtrace, then create an API there.

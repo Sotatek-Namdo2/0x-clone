@@ -29,19 +29,20 @@ describe("0xB", () => {
     const NODERewardManagement = await ethers.getContractFactory("NODERewardManagement");
     const nodePrices = [
       utils.parseEther("5"), // Square
-      utils.parseEther("10"), // Cube
+      utils.parseEther("15"), // Cube
       utils.parseEther("30"), // Tesseract
     ];
-    const rewardAPYs = [
-      25000000000000, // Square
-      40000000000000, // Cube
-      50000000000000, // Tesseract
+    const rewardAPRs = [
+      250000000, // Square
+      400000000, // Cube
+      500000000, // Tesseract
     ];
     const cashoutTimeout = 1;
     const nodeRewardManagement = (await NODERewardManagement.deploy(
       nodePrices,
-      rewardAPYs,
+      rewardAPRs,
       cashoutTimeout,
+      30000000,
     )) as NODERewardManagement;
     return { nodeRewardManagement };
   };
@@ -90,13 +91,11 @@ describe("0xB", () => {
       deployerAddress,
       deployerAddress,
       deployerAddress,
-      deployerAddress,
       distributePool.address,
       distributePool.address,
-      deployerAddress,
       "0x000000000000000000000000000000000000dead",
     ];
-    const balances = [220000, 220000, 220000, 220000, 10000, 100000, 10000, 19456743];
+    const balances = [800000, 50000, 50000, 50000, 50000, 12345];
     const futureFee = 2;
     const rewardsFee = 60;
     const liquidityPoolFee = 10;
@@ -106,7 +105,6 @@ describe("0xB", () => {
     const uniV2Router = joeRouter.address;
     const USDCToken = "0x2aa53D89Bc2453b163ee6376278A545C8b3DaB52"; // fake USDC Address on testnet
     const zeroXBlocks = (await ZeroXBlocksV1.deploy(
-      [deployerAddress],
       payees,
       shares,
       addresses,
@@ -141,11 +139,11 @@ describe("0xB", () => {
   });
 
   describe("First Blood", () => {
-    it("createNodeWithTokens", async () => {
+    it("mintNodes", async () => {
       await zeroXBlocks.transfer(wallets[2].address, utils.parseEther("1000"));
 
-      await zeroXBlocks.connect(wallets[2]).createNodeWithTokens("test", 2);
-      await zeroXBlocks.connect(wallets[2]).createNodeWithTokens("test2", 2);
+      await zeroXBlocks.connect(wallets[2]).mintNodes(["test"], 2);
+      await zeroXBlocks.connect(wallets[2]).mintNodes(["test2"], 2);
     });
   });
 });

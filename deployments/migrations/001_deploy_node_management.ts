@@ -25,7 +25,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     500_000_000, // Tesseract
   ];
   const autoReduceAPRRate = 30_000_000;
-  const cashoutTimeout = 180; // 3 minutes
+  const cashoutTimeout = 1;
   await deploy("NODERewardManagement", {
     from: deployer,
     args: [nodePrices, rewardAPRs, cashoutTimeout, autoReduceAPRRate],
