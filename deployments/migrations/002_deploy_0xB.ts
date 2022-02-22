@@ -40,8 +40,17 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
 
   await deploy("ZeroXBlocksV1", {
     from: deployer,
-    args: [payees, shares, addresses, balances, fees, uniV2Router, USDCToken],
     log: true,
+    proxy: {
+      owner: deployer,
+      proxyContract: "OptimizedTransparentProxy",
+      execute: {
+        init: {
+          methodName: "initialize",
+          args: [payees, shares, addresses, balances, fees, uniV2Router, USDCToken],
+        },
+      },
+    },
   });
 
   const NODERewardManagement = await deployments.get("NODERewardManagement");

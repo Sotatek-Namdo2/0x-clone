@@ -87,5 +87,8 @@
   },
   "gitpkg": {
     "registry": "git@github.com:Sotatek-DucPham/gitpkg-registry.git"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts-upgradeable": "^4.5.1"
   }
 }
