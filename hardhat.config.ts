@@ -37,19 +37,7 @@ if (!deployerPrivateKey) {
   throw new Error("Please set your DEPLOYER_PRIVATE_KEY in a .env file");
 }
 
-const developmentFundWalletPrivateKey: string | undefined =
-  process.env.DEVELOPMENT_FUND_WALLET_PK || deployerPrivateKey;
-const liquidityPoolWalletPrivateKey: string | undefined = process.env.LIQUIDITY_POOL_WALLET_PK || deployerPrivateKey;
-const treasuryWalletPrivateKey: string | undefined = process.env.TREASURY_WALLET_PK || deployerPrivateKey;
-const rewardsWalletPrivateKey: string | undefined = process.env.REWARDS_WALLET_PK || deployerPrivateKey;
-
-const accounts = [
-  `0x${deployerPrivateKey}`,
-  `0x${developmentFundWalletPrivateKey}`,
-  `0x${liquidityPoolWalletPrivateKey}`,
-  `0x${treasuryWalletPrivateKey}`,
-  `0x${rewardsWalletPrivateKey}`,
-];
+const accounts = [`0x${deployerPrivateKey}`];
 
 const infuraApiKey: string | undefined = process.env.INFURA_API_KEY;
 if (!infuraApiKey) {
@@ -122,10 +110,6 @@ const config: HardhatUserConfig = {
   },
   namedAccounts: {
     deployer: 0,
-    developmentFund: 1,
-    liquidityPool: 2,
-    treasury: 3,
-    rewards: 4,
   },
 };
 

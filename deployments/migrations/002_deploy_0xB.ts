@@ -5,7 +5,11 @@ import { chainIds } from "../../hardhat.config";
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Promise<void> {
   const { deployments, getNamedAccounts, getChainId } = hre;
   const { deploy, execute } = deployments;
-  const { deployer, developmentFund, liquidityPool, treasury, rewards } = await getNamedAccounts();
+  const { deployer } = await getNamedAccounts();
+  const developmentFund = process.env.DEVELOPMENT_FUND_WALLET || deployer;
+  const liquidityPool = process.env.LIQUIDITY_POOL_WALLET || deployer;
+  const treasury = process.env.TREASURY_WALLET || deployer;
+  const rewards = process.env.REWARDS_WALLET || deployer;
   const chainId = await getChainId();
 
   if (chainId === chainIds.avax.toString()) {

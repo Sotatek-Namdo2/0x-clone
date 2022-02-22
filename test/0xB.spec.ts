@@ -84,6 +84,7 @@ describe("0xB", () => {
     const { nodeRewardManagement } = await nodeRewardManagementFixture(wallets, provider);
 
     const ZeroXBlocksV1 = await ethers.getContractFactory("ZeroXBlocksV1");
+    const mockUSDC = await await (await ethers.getContractFactory("USDC")).deploy();
     const deployerAddress = deployer.address;
     const payees = [deployerAddress];
     const shares = [1];
@@ -103,7 +104,7 @@ describe("0xB", () => {
     const rwSwap = 30;
     const fees = [futureFee, rewardsFee, liquidityPoolFee, cashoutFee, rwSwap];
     const uniV2Router = joeRouter.address;
-    const USDCToken = "0x2aa53D89Bc2453b163ee6376278A545C8b3DaB52"; // fake USDC Address on testnet
+    const USDCToken = mockUSDC.address; // fake USDC Address on testnet
     const zeroXBlocks = (await ZeroXBlocksV1.deploy(
       payees,
       shares,

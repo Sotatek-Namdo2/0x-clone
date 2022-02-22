@@ -72,13 +72,17 @@ contract NODERewardManagement {
     }
 
     // -------------- Modifier (filter) --------------
-    modifier onlySentry() {
+    modifier onlyAuthorities() {
         require(msg.sender == token || msg.sender == admin0XB, "Access Denied!");
         _;
     }
 
     // -------------- External WRITE functions --------------
-    function setToken(address token_) external onlySentry {
+    function setAdmin(address newAdmin) external onlyAuthorities {
+        admin0XB = newAdmin;
+    }
+
+    function setToken(address token_) external onlyAuthorities {
         token = token_;
     }
 
@@ -86,7 +90,7 @@ contract NODERewardManagement {
         address account,
         string[] memory nodeNames,
         ContractType _cType
-    ) external onlySentry {
+    ) external onlyAuthorities {
         _nodesOfUser[account];
 
         for (uint256 i = 0; i < nodeNames.length; i++) {
@@ -107,7 +111,7 @@ contract NODERewardManagement {
         _totalNodesPerContractType[_cType] += nodeNames.length;
     }
 
-    function _cashoutNodeReward(address account, uint256 _nodeIndex) external onlySentry returns (uint256) {
+    function _cashoutNodeReward(address account, uint256 _nodeIndex) external onlyAuthorities returns (uint256) {
         NodeEntity[] storage nodes = _nodesOfUser[account];
         require(_nodeIndex >= 0 && _nodeIndex < nodes.length, "NODE: Index Error");
         NodeEntity storage node = nodes[_nodeIndex];
@@ -118,7 +122,7 @@ contract NODERewardManagement {
         return rewardNode;
     }
 
-    function _cashoutAllNodesReward(address account) external onlySentry returns (uint256) {
+    function _cashoutAllNodesReward(address account) external onlyAuthorities returns (uint256) {
         NodeEntity[] storage nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
         require(nodesCount > 0, "CASHOUT ERROR: You don't have nodes to cash-out");
@@ -143,26 +147,26 @@ contract NODERewardManagement {
         return rewardsTotal;
     }
 
-    function _changeNodePrice(ContractType _cType, uint256 newNodePrice) external onlySentry {
+    function _changeNodePrice(ContractType _cType, uint256 newNodePrice) external onlyAuthorities {
         nodePrice[_cType] = newNodePrice;
     }
 
-    function _changeRewardAPRPerNode(ContractType _cType, int256 reducedPercentage) external onlySentry {
+    function _changeRewardAPRPerNode(ContractType _cType, int256 reducedPercentage) external onlyAuthorities {
         rewardAPRPerNode[_cType] = reduceByPercent(rewardAPRPerNode[_cType], reducedPercentage);
         aprChangesHistory[_cType].push(
             APRChangesEntry({ timestamp: block.timestamp, reducedPercentage: reducedPercentage })
         );
     }
 
-    function _changeCashoutTimeout(uint256 newTime) external onlySentry {
+    function _changeCashoutTimeout(uint256 newTime) external onlyAuthorities {
         cashoutTimeout = newTime;
     }
 
-    function _changeAutoReduceAPRInterval(uint256 newInterval) external onlySentry {
+    function _changeAutoReduceAPRInterval(uint256 newInterval) external onlyAuthorities {
         autoReduceAPRInterval = newInterval;
     }
 
-    function _changeAutoReduceAPRRate(uint256 newRate) external onlySentry {
+    function _changeAutoReduceAPRRate(uint256 newRate) external onlyAuthorities {
         autoReduceAPRRate = newRate;
     }
 
