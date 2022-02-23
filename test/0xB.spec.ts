@@ -3,7 +3,7 @@ import { utils, Wallet, constants } from "ethers";
 import { ethers, waffle } from "hardhat";
 import { abi as JoeFactoryAbi, bytecode as JoeFactoryBytecode } from "./contracts/JoeFactory.json";
 import { abi as JoeRouterAbi, bytecode as JoeRouterBytecode } from "./contracts/JoeRouter02.json";
-import { IJoeFactory, IJoeRouter02, NODERewardManagement, WAVAX, ZeroXBlocksV1 } from "../typechain";
+import { IJoeFactory, IJoeRouter02, NODERewardManagement, USDC, WAVAX, ZeroXBlocksV1 } from "../typechain";
 
 describe("0xB", () => {
   let wallets: Wallet[], deployer: Wallet, distributePool: Wallet;
@@ -11,6 +11,7 @@ describe("0xB", () => {
   let joeRouter: IJoeRouter02;
   let zeroXBlocks: ZeroXBlocksV1;
   let nodeRewardManagement: NODERewardManagement;
+  let usdc: USDC, usdcDecimal: number;
   let loadFixture: ReturnType<typeof waffle.createFixtureLoader>;
 
   before("create fixture loader", async () => {
@@ -19,10 +20,13 @@ describe("0xB", () => {
     loadFixture = waffle.createFixtureLoader([deployer as any]);
   });
 
-  const wavaxFixture: Fixture<{ wavax: WAVAX }> = async () => {
+  const tokenFixture: Fixture<{ wavax: WAVAX; usdc: USDC }> = async () => {
     const WAVAX = await ethers.getContractFactory("WAVAX");
+    const USDC = await ethers.getContractFactory("USDC");
     const wavax = (await WAVAX.deploy()) as WAVAX;
-    return { wavax };
+    const usdc = (await USDC.deploy()) as USDC;
+    usdcDecimal = await usdc.decimals();
+    return { wavax, usdc };
   };
 
   const nodeRewardManagementFixture: Fixture<{ nodeRewardManagement: NODERewardManagement }> = async () => {
@@ -47,11 +51,13 @@ describe("0xB", () => {
     return { nodeRewardManagement };
   };
 
-  const traderJoeFixture: Fixture<{ wavax: WAVAX; joeFactory: IJoeFactory; joeRouter: IJoeRouter02 }> = async (
-    [wallet],
-    provider,
-  ) => {
-    const { wavax } = await wavaxFixture([wallet], provider);
+  const traderJoeFixture: Fixture<{
+    wavax: WAVAX;
+    joeFactory: IJoeFactory;
+    joeRouter: IJoeRouter02;
+    usdc: USDC;
+  }> = async ([wallet], provider) => {
+    const { wavax, usdc } = await tokenFixture([wallet], provider);
 
     const joeFactory = (await waffle.deployContract(
       wallet as any,
@@ -71,7 +77,7 @@ describe("0xB", () => {
       [joeFactory.address, wavax.address],
     )) as IJoeRouter02;
 
-    return { wavax, joeFactory, joeRouter };
+    return { wavax, joeFactory, joeRouter, usdc };
   };
 
   const completeFixture: Fixture<{
@@ -79,12 +85,12 @@ describe("0xB", () => {
     nodeRewardManagement: NODERewardManagement;
     joeRouter: IJoeRouter02;
     zeroXBlocks: ZeroXBlocksV1;
+    usdc: USDC;
   }> = async (wallets, provider) => {
-    const { wavax, joeRouter } = await traderJoeFixture(wallets, provider);
+    const { wavax, joeRouter, usdc } = await traderJoeFixture(wallets, provider);
     const { nodeRewardManagement } = await nodeRewardManagementFixture(wallets, provider);
 
     const ZeroXBlocksV1 = await ethers.getContractFactory("ZeroXBlocksV1");
-    const mockUSDC = await await (await ethers.getContractFactory("USDC")).deploy();
     const deployerAddress = deployer.address;
     const payees = [deployerAddress];
     const shares = [1];
@@ -104,7 +110,6 @@ describe("0xB", () => {
     const rwSwap = 30;
     const fees = [futureFee, rewardsFee, liquidityPoolFee, cashoutFee, rwSwap];
     const uniV2Router = joeRouter.address;
-    const USDCToken = mockUSDC.address; // fake USDC Address on testnet
     const zeroXBlocks = (await ZeroXBlocksV1.deploy(
       payees,
       shares,
@@ -112,12 +117,13 @@ describe("0xB", () => {
       balances,
       fees,
       uniV2Router,
-      USDCToken,
+      usdc.address,
     )) as ZeroXBlocksV1;
 
     await nodeRewardManagement.setToken(zeroXBlocks.address);
     await zeroXBlocks.setNodeManagement(nodeRewardManagement.address);
 
+    // wavax - zeroX pair
     await wavax.deposit({ value: utils.parseEther("10") });
     await wavax.approve(joeRouter.address, constants.MaxUint256);
     await zeroXBlocks.approve(joeRouter.address, constants.MaxUint256);
@@ -132,11 +138,25 @@ describe("0xB", () => {
       Math.floor(Date.now() / 1000) + 86400,
     );
 
-    return { wavax, nodeRewardManagement, joeRouter, zeroXBlocks };
+    // wavax - usdc pair
+    await wavax.deposit({ value: utils.parseEther("10") });
+    await usdc.approve(joeRouter.address, constants.MaxUint256);
+    await joeRouter.addLiquidity(
+      usdc.address,
+      wavax.address,
+      utils.parseUnits("100", usdcDecimal),
+      utils.parseEther("1"),
+      0,
+      0,
+      deployer.address,
+      Math.floor(Date.now() / 1000) + 86400,
+    );
+
+    return { wavax, nodeRewardManagement, joeRouter, zeroXBlocks, usdc };
   };
 
   beforeEach("deploy", async () => {
-    ({ wavax, nodeRewardManagement, joeRouter, zeroXBlocks } = await loadFixture(completeFixture));
+    ({ wavax, nodeRewardManagement, joeRouter, zeroXBlocks, usdc } = await loadFixture(completeFixture));
   });
 
   describe("First Blood", () => {
