@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../libraries/IterableMapping.sol";
 
 enum ContractType {
@@ -9,14 +10,14 @@ enum ContractType {
     Tesseract
 }
 
-contract NODERewardManagement {
+contract NODERewardManagement is Initializable {
     using IterableMapping for IterableMapping.Map;
 
-    // -------------- Constants --------------
+    // ----- Constants -----
     uint256 private constant UNIX_YEAR = 31_536_000;
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
 
-    // -------------- Node Structs --------------
+    // ----- Node Structs -----
     struct NodeEntity {
         string name;
         uint256 creationTime;
@@ -26,13 +27,13 @@ contract NODERewardManagement {
         ContractType cType;
     }
 
-    // -------------- Changes Structs --------------
+    // ----- Changes Structs -----
     struct APRChangesEntry {
         uint256 timestamp;
         int256 reducedPercentage;
     }
 
-    // -------------- Contract Storage --------------
+    // ----- Contract Storage -----
     IterableMapping.Map private nodeOwners;
     mapping(address => NodeEntity[]) private _nodesOfUser;
 
@@ -40,22 +41,24 @@ contract NODERewardManagement {
     mapping(ContractType => uint256) public rewardAPRPerNode;
     mapping(ContractType => APRChangesEntry[]) private aprChangesHistory;
     uint256 public cashoutTimeout;
-    uint256 public autoReduceAPRInterval = UNIX_YEAR;
+    uint256 public autoReduceAPRInterval;
     uint256 public autoReduceAPRRate;
 
     address public admin0XB;
     address public token;
 
-    uint256 public totalNodesCreated = 0;
+    uint256 public totalNodesCreated;
     mapping(ContractType => uint256) private _totalNodesPerContractType;
 
-    // -------------- Constructor --------------
-    constructor(
+    // ----- Constructor -----
+    function initialize(
         uint256[] memory _nodePrices,
         uint256[] memory _rewardAPRs,
         uint256 _cashoutTimeout,
         uint256 _autoReduceAPRRate
-    ) {
+    ) public initializer {
+        autoReduceAPRInterval = UNIX_YEAR;
+        totalNodesCreated = 0;
         uint256 initialTimestamp = block.timestamp;
         for (uint256 i = 0; i < 3; i++) {
             nodePrice[ContractType(i)] = _nodePrices[i];
@@ -71,13 +74,13 @@ contract NODERewardManagement {
         autoReduceAPRRate = _autoReduceAPRRate;
     }
 
-    // -------------- Modifier (filter) --------------
+    // ----- Modifier (filter) -----
     modifier onlyAuthorities() {
         require(msg.sender == token || msg.sender == admin0XB, "Access Denied!");
         _;
     }
 
-    // -------------- External WRITE functions --------------
+    // ----- External WRITE functions -----
     function setAdmin(address newAdmin) external onlyAuthorities {
         admin0XB = newAdmin;
     }
@@ -147,8 +150,8 @@ contract NODERewardManagement {
         return rewardsTotal;
     }
 
-    function _changeNodePrice(ContractType _cType, uint256 newNodePrice) external onlyAuthorities {
-        nodePrice[_cType] = newNodePrice;
+    function _changeNodePrice(ContractType _cType, uint256 newPrice) external onlyAuthorities {
+        nodePrice[_cType] = newPrice;
     }
 
     function _changeRewardAPRPerNode(ContractType _cType, int256 reducedPercentage) external onlyAuthorities {
@@ -170,7 +173,7 @@ contract NODERewardManagement {
         autoReduceAPRRate = newRate;
     }
 
-    // -------------- External READ functions --------------
+    // ----- External READ functions -----
     function totalNodesPerContractType(ContractType _cType) external view returns (uint256) {
         return _totalNodesPerContractType[_cType];
     }
@@ -314,7 +317,7 @@ contract NODERewardManagement {
         return nodeOwners.get(account);
     }
 
-    // -------------- Private/Internal Helpers --------------
+    // ----- Private/Internal Helpers -----
     function historyBinarySearch(ContractType _cType, uint256 timestamp) private view returns (uint256) {
         uint256 leftIndex = 0;
         uint256 rightIndex = aprChangesHistory[_cType].length;

@@ -42,12 +42,8 @@ describe("0xB", () => {
       500000000, // Tesseract
     ];
     const cashoutTimeout = 1;
-    const nodeRewardManagement = (await NODERewardManagement.deploy(
-      nodePrices,
-      rewardAPRs,
-      cashoutTimeout,
-      30000000,
-    )) as NODERewardManagement;
+    const nodeRewardManagement = (await NODERewardManagement.deploy()) as NODERewardManagement;
+    await nodeRewardManagement.initialize(nodePrices, rewardAPRs, cashoutTimeout, 30000000);
     return { nodeRewardManagement };
   };
 
@@ -110,15 +106,8 @@ describe("0xB", () => {
     const rwSwap = 30;
     const fees = [futureFee, rewardsFee, liquidityPoolFee, cashoutFee, rwSwap];
     const uniV2Router = joeRouter.address;
-    const zeroXBlocks = (await ZeroXBlocksV1.deploy(
-      payees,
-      shares,
-      addresses,
-      balances,
-      fees,
-      uniV2Router,
-      usdc.address,
-    )) as ZeroXBlocksV1;
+    const zeroXBlocks = (await ZeroXBlocksV1.deploy()) as ZeroXBlocksV1;
+    await zeroXBlocks.initialize(payees, shares, addresses, balances, fees, uniV2Router, usdc.address);
 
     await nodeRewardManagement.setToken(zeroXBlocks.address);
     await zeroXBlocks.setNodeManagement(nodeRewardManagement.address);

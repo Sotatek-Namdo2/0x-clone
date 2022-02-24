@@ -28,7 +28,16 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const cashoutTimeout = 1;
   await deploy("NODERewardManagement", {
     from: deployer,
-    args: [nodePrices, rewardAPRs, cashoutTimeout, autoReduceAPRRate],
+    proxy: {
+      owner: deployer,
+      proxyContract: "OptimizedTransparentProxy",
+      execute: {
+        init: {
+          methodName: "initialize",
+          args: [nodePrices, rewardAPRs, cashoutTimeout, autoReduceAPRRate],
+        },
+      },
+    },
     log: true,
   });
 };
