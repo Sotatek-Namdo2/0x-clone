@@ -62,6 +62,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     ) public initializer {
         require(addresses.length > 0 && balances.length > 0, "ADDR & BALANCE ERROR");
 
+        __Ownable_init();
         __ERC20_init("0xBlocks v1", "0XB");
         __PaymentSplitter_init(payees, shares);
 
@@ -127,19 +128,19 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         _nrm = NODERewardManagement(nrm);
     }
 
-    function changeNodePrice(ContractType _cType, uint256 newPrice) public onlyOwner {
+    function changeNodePrice(ContractType _cType, uint256 newPrice) external onlyOwner {
         _nrm._changeNodePrice(_cType, newPrice);
     }
 
-    function changeRewardAPRPerNode(ContractType _cType, int256 deductPcent) public onlyOwner {
+    function changeRewardAPRPerNode(ContractType _cType, int256 deductPcent) external onlyOwner {
         _nrm._changeRewardAPRPerNode(_cType, deductPcent);
     }
 
-    function changeCashoutTimeout(uint256 newTime) public onlyOwner {
+    function changeCashoutTimeout(uint256 newTime) external onlyOwner {
         _nrm._changeCashoutTimeout(newTime);
     }
 
-    function updateUniswapV2Router(address newAddress) public onlyOwner {
+    function updateUniswapV2Router(address newAddress) external onlyOwner {
         require(newAddress != address(uniswapV2Router), "TKN: The router already has that address");
         uniswapV2Router = IJoeRouter02(newAddress);
         address _uniswapV2Pair = IJoeFactory(uniswapV2Router.factory()).createPair(
@@ -202,7 +203,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         cashoutFee = value;
     }
 
-    function setAutomatedMarketMakerPair(address pair, bool value) public onlyOwner {
+    function setAutomatedMarketMakerPair(address pair, bool value) external onlyOwner {
         require(pair != uniswapV2Pair, "TKN: The PancakeSwap pair cannot be removed");
 
         _setAutomatedMarketMakerPair(pair, value);
@@ -212,7 +213,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         _isBlacklisted[account] = value;
     }
 
-    function changeEnableAutoSwap(bool newVal) public onlyOwner {
+    function changeEnableAutoSwap(bool newVal) external onlyOwner {
         enableAutoSwap = newVal;
     }
 
@@ -281,7 +282,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** WRITE functions for public *****
-    function mintNodes(string[] memory names, ContractType _cType) public {
+    function mintNodes(string[] memory names, ContractType _cType) external {
         require(enableMintNodes, "NODEMINT: mint nodes disabled");
         require(names.length <= mintNodeLimit, "NODEMINT: too many nodes");
         for (uint256 i = 0; i < names.length; i++) {
@@ -330,7 +331,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         _nrm.createNodes(sender, names, _cType);
     }
 
-    function cashoutReward(uint256 _nodeIndex) public {
+    function cashoutReward(uint256 _nodeIndex) external {
         address sender = _msgSender();
         require(enableCashout == true, "CSHT: Cashout Disabled");
         require(sender != address(0), "CSHT: zero address");
@@ -355,7 +356,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         _nrm._cashoutNodeReward(sender, _nodeIndex);
     }
 
-    function cashoutAll() public {
+    function cashoutAll() external {
         address sender = _msgSender();
         require(enableCashout == true, "CSHTALL: cashout disabled");
         require(sender != address(0), "CSHTALL: zero address");
@@ -379,75 +380,75 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** READ function for public *****
-    function getRewardAmountOf(address account) public view onlyOwner returns (uint256) {
+    function getRewardAmountOf(address account) external view onlyOwner returns (uint256) {
         return _nrm._getRewardAmountOf(account);
     }
 
-    function getRewardAmount() public view returns (uint256) {
+    function getRewardAmount() external view returns (uint256) {
         require(_msgSender() != address(0), "SENDER IS 0");
         require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return _nrm._getRewardAmountOf(_msgSender());
     }
 
-    function getNodePrice(ContractType _cType) public view returns (uint256) {
+    function getNodePrice(ContractType _cType) external view returns (uint256) {
         return _nrm.nodePrice(_cType);
     }
 
-    function getRewardAPRPerNode(ContractType _cType) public view returns (uint256) {
+    function getRewardAPRPerNode(ContractType _cType) external view returns (uint256) {
         return _nrm.rewardAPRPerNode(_cType);
     }
 
-    function getCashoutTimeout() public view returns (uint256) {
+    function getCashoutTimeout() external view returns (uint256) {
         return _nrm.cashoutTimeout();
     }
 
-    function getNodesNames() public view returns (string memory) {
+    function getNodesNames() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
         require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return _nrm._getNodesNames(_msgSender());
     }
 
-    function getNodesCurrentAPR() public view returns (string memory) {
+    function getNodesCurrentAPR() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
         require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return _nrm._getNodesCurrentAPR(_msgSender());
     }
 
-    function getNodesInitialAPR() public view returns (string memory) {
+    function getNodesInitialAPR() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
         require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return _nrm._getNodesInitialAPR(_msgSender());
     }
 
-    function getNodesCreationTime() public view returns (string memory) {
+    function getNodesCreationTime() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
         require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return _nrm._getNodesCreationTime(_msgSender());
     }
 
-    function getNodesTypes() public view returns (string memory) {
+    function getNodesTypes() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
         require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return _nrm._getNodesTypes(_msgSender());
     }
 
-    function getNodesRewards() public view returns (string memory) {
+    function getNodesRewards() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
         require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return _nrm._getNodesRewardAvailable(_msgSender());
     }
 
-    function getNodesLastCashoutTime() public view returns (string memory) {
+    function getNodesLastCashoutTime() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
         require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
         return _nrm._getNodesLastUpdateTime(_msgSender());
     }
 
-    function getTotalNodes() public view returns (uint256) {
+    function getTotalNodes() external view returns (uint256) {
         return _nrm.totalNodesCreated();
     }
 
-    function getTotalNodesPerContractType(ContractType __cType) public view returns (uint256) {
+    function getTotalNodesPerContractType(ContractType __cType) external view returns (uint256) {
         return _nrm.totalNodesPerContractType(__cType);
     }
 }
