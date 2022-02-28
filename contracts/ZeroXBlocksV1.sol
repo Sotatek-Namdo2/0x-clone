@@ -36,7 +36,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     uint256 public cashoutFee;
 
     // ***** Storage for swapping *****
-    bool public enableAutoSwap;
+    bool public enableAutoSwapTreasury;
+    bool public enableAutoSwapDevFund;
     uint256 public swapTokensAmount;
     address public usdcToken;
 
@@ -111,7 +112,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         usdcToken = usdcAddr;
         ownedNodesLimit = 100;
         mintNodeLimit = 10;
-        enableAutoSwap = true;
+        enableAutoSwapTreasury = true;
+        enableAutoSwapDevFund = true;
         swapTokensAmount = 0;
     }
 
@@ -213,8 +215,12 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         _isBlacklisted[account] = value;
     }
 
-    function changeEnableAutoSwap(bool newVal) external onlyOwner {
-        enableAutoSwap = newVal;
+    function changeEnableAutoSwapTreasury(bool newVal) external onlyOwner {
+        enableAutoSwapTreasury = newVal;
+    }
+
+    function changeEnableAutoSwapDevFund(bool newVal) external onlyOwner {
+        enableAutoSwapDevFund = newVal;
     }
 
     // ***** Private helpers functions *****
@@ -241,44 +247,36 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     function swapAVAXSendTo(address targetWallet, uint256 tokens) private {
-        if (enableAutoSwap) {
-            address[] memory path = new address[](2);
-            path[0] = address(this);
-            path[1] = uniswapV2Router.WAVAX();
+        address[] memory path = new address[](2);
+        path[0] = address(this);
+        path[1] = uniswapV2Router.WAVAX();
 
-            _approve(address(this), address(uniswapV2Router), tokens);
+        _approve(address(this), address(uniswapV2Router), tokens);
 
-            uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
-                tokens,
-                0, // accept any amount of AVAX
-                path,
-                targetWallet,
-                block.timestamp
-            );
-        } else {
-            super._transfer(address(this), targetWallet, tokens);
-        }
+        uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
+            tokens,
+            0, // accept any amount of AVAX
+            path,
+            targetWallet,
+            block.timestamp
+        );
     }
 
     function swapUSDCSendTo(address targetWallet, uint256 tokens) private {
-        if (enableAutoSwap) {
-            address[] memory path = new address[](3);
-            path[0] = address(this);
-            path[1] = uniswapV2Router.WAVAX();
-            path[2] = usdcToken;
+        address[] memory path = new address[](3);
+        path[0] = address(this);
+        path[1] = uniswapV2Router.WAVAX();
+        path[2] = usdcToken;
 
-            _approve(address(this), address(uniswapV2Router), tokens);
+        _approve(address(this), address(uniswapV2Router), tokens);
 
-            uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-                tokens,
-                0, // accept any amount of USDC
-                path,
-                targetWallet,
-                block.timestamp
-            );
-        } else {
-            super._transfer(address(this), targetWallet, tokens);
-        }
+        uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            tokens,
+            0, // accept any amount of USDC
+            path,
+            targetWallet,
+            block.timestamp
+        );
     }
 
     // ***** WRITE functions for public *****
@@ -304,8 +302,12 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         // DEV FUND
         uint256 developmentFundTokens = (nodesPrice * developmentFee) / 100;
-        super._transfer(sender, address(this), developmentFundTokens);
-        swapUSDCSendTo(developmentFundPool, developmentFundTokens);
+        if (enableAutoSwapDevFund) {
+            super._transfer(sender, address(this), developmentFundTokens);
+            swapUSDCSendTo(developmentFundPool, developmentFundTokens);
+        } else {
+            super._transfer(sender, developmentFundPool, developmentFundTokens);
+        }
 
         // REWARDS POOL
         uint256 rewardsPoolTokens = (nodesPrice * rewardsFee) / 100;
@@ -313,8 +315,12 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         // TREASURY
         uint256 treasuryPoolTokens = (nodesPrice * treasuryFee) / 100;
-        super._transfer(sender, address(this), treasuryPoolTokens);
-        swapUSDCSendTo(treasuryPool, treasuryPoolTokens);
+        if (enableAutoSwapTreasury) {
+            super._transfer(sender, address(this), treasuryPoolTokens);
+            swapUSDCSendTo(treasuryPool, treasuryPoolTokens);
+        } else {
+            super._transfer(sender, treasuryPool, treasuryPoolTokens);
+        }
 
         // LIQUIDITY
         uint256 liquidityTokens = (nodesPrice * liquidityPoolFee) / 100;
