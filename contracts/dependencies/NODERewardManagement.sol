@@ -59,14 +59,14 @@ contract NODERewardManagement is Initializable {
     ) public initializer {
         autoReduceAPRInterval = UNIX_YEAR;
         totalNodesCreated = 0;
-        uint256 initialTimestamp = block.timestamp;
+        uint256 initialTstamp = block.timestamp;
         for (uint256 i = 0; i < 3; i++) {
             nodePrice[ContractType(i)] = _nodePrices[i];
             rewardAPRPerNode[ContractType(i)] = _rewardAPRs[i];
             _totalNodesPerContractType[ContractType(i)] = 0;
             aprChangesHistory[ContractType(i)];
             aprChangesHistory[ContractType(i)].push(
-                APRChangesEntry({ timestamp: initialTimestamp, reducedPercentage: 0 })
+                APRChangesEntry({ timestamp: initialTstamp, reducedPercentage: 0 })
             );
         }
         cashoutTimeout = _cashoutTimeout;
@@ -119,9 +119,9 @@ contract NODERewardManagement is Initializable {
         require(_nodeIndex >= 0 && _nodeIndex < nodes.length, "NODE: Index Error");
         NodeEntity storage node = nodes[_nodeIndex];
         require(claimable(node.lastUpdateTime), "CASHOUT ERROR: You have to wait before claiming this node.");
-        uint256 currentTimestamp = block.timestamp;
-        uint256 rewardNode = nodeCurrentReward(node, currentTimestamp);
-        node.lastUpdateTime = currentTimestamp;
+        uint256 currentTstamp = block.timestamp;
+        uint256 rewardNode = nodeCurrentReward(node, currentTstamp);
+        node.lastUpdateTime = currentTstamp;
         return rewardNode;
     }
 
@@ -131,7 +131,7 @@ contract NODERewardManagement is Initializable {
         require(nodesCount > 0, "CASHOUT ERROR: You don't have nodes to cash-out");
         NodeEntity storage _node;
         uint256 rewardsTotal = 0;
-        uint256 currentTimestamp = block.timestamp;
+        uint256 currentTstamp = block.timestamp;
         uint256 latestCashout = 0;
         for (uint256 i = 0; i < nodesCount; i++) {
             uint256 lastUpd = nodes[i].lastUpdateTime;
@@ -144,8 +144,8 @@ contract NODERewardManagement is Initializable {
 
         for (uint256 i = 0; i < nodesCount; i++) {
             _node = nodes[i];
-            rewardsTotal += nodeCurrentReward(_node, currentTimestamp);
-            _node.lastUpdateTime = currentTimestamp;
+            rewardsTotal += nodeCurrentReward(_node, currentTstamp);
+            _node.lastUpdateTime = currentTstamp;
         }
         return rewardsTotal;
     }
@@ -188,11 +188,11 @@ contract NODERewardManagement is Initializable {
 
         NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
-        uint256 currentTimestamp = block.timestamp;
+        uint256 currentTstamp = block.timestamp;
 
         for (uint256 i = 0; i < nodesCount; i++) {
             NodeEntity memory _node = nodes[i];
-            rewardCount += nodeCurrentReward(_node, currentTimestamp);
+            rewardCount += nodeCurrentReward(_node, currentTstamp);
         }
 
         return rewardCount;
@@ -286,12 +286,12 @@ contract NODERewardManagement is Initializable {
         require(isNodeOwner(account), "GET REWARD: NO NODE OWNER");
         NodeEntity[] memory nodes = _nodesOfUser[account];
         uint256 nodesCount = nodes.length;
-        uint256 currentTimestamp = block.timestamp;
-        string memory _rewardsAvailable = uint2str(nodeCurrentReward(nodes[0], currentTimestamp));
+        uint256 currentTstamp = block.timestamp;
+        string memory _rewardsAvailable = uint2str(nodeCurrentReward(nodes[0], currentTstamp));
         string memory separator = "#";
         for (uint256 i = 1; i < nodesCount; i++) {
             _rewardsAvailable = string(
-                abi.encodePacked(_rewardsAvailable, separator, uint2str(nodeCurrentReward(nodes[i], currentTimestamp)))
+                abi.encodePacked(_rewardsAvailable, separator, uint2str(nodeCurrentReward(nodes[i], currentTstamp)))
             );
         }
         return _rewardsAvailable;
@@ -330,14 +330,19 @@ contract NODERewardManagement is Initializable {
     }
 
     function currentAPRSingleNode(NodeEntity memory node) private view returns (uint256) {
+        return nodeAPRAt(node, block.timestamp);
+    }
+
+    function nodeAPRAt(NodeEntity memory node, uint256 tstamp) private view returns (uint256) {
         uint256 creatime = node.creationTime;
         ContractType cType = node.cType;
-        uint256 startIndex = historyBinarySearch(cType, creatime);
         uint256 resultAPR = node.initialAPR;
-        for (uint256 i = startIndex; i < aprChangesHistory[cType].length; i++) {
+        uint256 startIndex = historyBinarySearch(cType, creatime);
+        uint256 endIndex = historyBinarySearch(cType, tstamp);
+        for (uint256 i = startIndex; i < endIndex; i++) {
             resultAPR = reduceByPercent(resultAPR, aprChangesHistory[cType][i].reducedPercentage);
         }
-        uint256 intervalCount = fullIntervalCount(block.timestamp, creatime);
+        uint256 intervalCount = fullIntervalCount(tstamp, creatime);
         while (intervalCount > 0) {
             intervalCount--;
             resultAPR = reduceByPercent(resultAPR, int256(autoReduceAPRRate));
@@ -345,51 +350,52 @@ contract NODERewardManagement is Initializable {
         return resultAPR;
     }
 
-    function nodeCurrentReward(NodeEntity memory node, uint256 curTimestamp) private view returns (uint256) {
+    function nodeCurrentReward(NodeEntity memory node, uint256 curTstamp) private view returns (uint256) {
         ContractType _cType = node.cType;
-        uint256 leftIndex = historyBinarySearch(_cType, node.lastUpdateTime);
+
+        uint256 lastUpdateIndex = historyBinarySearch(_cType, node.lastUpdateTime);
 
         uint256 nodeBuyPrice = node.buyPrice;
-        uint256 iteratingAPR = node.initialAPR;
-        uint256 iteratingTstamp = node.lastUpdateTime;
-        uint256 nextTimestamp = 0;
+        uint256 itrAPR = nodeAPRAt(node, node.lastUpdateTime);
+        uint256 itrTstamp = node.lastUpdateTime;
+        uint256 nextTstamp = 0;
         uint256 result = 0;
-        uint256 deltaTimestamp;
+        uint256 deltaTstamp;
         uint256 intervalReward;
         uint256 creatime = node.creationTime;
         bool diffInterval;
-        for (uint256 index = leftIndex; index < aprChangesHistory[_cType].length; index++) {
-            nextTimestamp = aprChangesHistory[_cType][index].timestamp;
-            diffInterval = (fullIntervalCount(nextTimestamp, creatime) != fullIntervalCount(iteratingTstamp, creatime));
+        for (uint256 index = lastUpdateIndex; index < aprChangesHistory[_cType].length; index++) {
+            nextTstamp = aprChangesHistory[_cType][index].timestamp;
+            diffInterval = (fullIntervalCount(nextTstamp, creatime) != fullIntervalCount(itrTstamp, creatime));
             if (diffInterval) {
-                nextTimestamp = creatime + autoReduceAPRInterval * (fullIntervalCount(iteratingTstamp, creatime) + 1);
+                nextTstamp = creatime + autoReduceAPRInterval * (fullIntervalCount(itrTstamp, creatime) + 1);
             }
-            deltaTimestamp = nextTimestamp - iteratingTstamp;
-            intervalReward = (((nodeBuyPrice * iteratingAPR) / HUNDRED_PERCENT) * deltaTimestamp) / UNIX_YEAR;
-            iteratingTstamp = nextTimestamp;
+            deltaTstamp = nextTstamp - itrTstamp;
+            intervalReward = (((nodeBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
+            itrTstamp = nextTstamp;
             result += intervalReward;
 
             if (diffInterval) {
-                iteratingAPR = reduceByPercent(iteratingAPR, int256(autoReduceAPRRate));
+                itrAPR = reduceByPercent(itrAPR, int256(autoReduceAPRRate));
                 index--;
             } else {
-                iteratingAPR = reduceByPercent(iteratingAPR, aprChangesHistory[_cType][index].reducedPercentage);
+                itrAPR = reduceByPercent(itrAPR, aprChangesHistory[_cType][index].reducedPercentage);
             }
         }
 
-        while (iteratingTstamp != curTimestamp) {
-            nextTimestamp = curTimestamp;
-            diffInterval = (fullIntervalCount(nextTimestamp, creatime) != fullIntervalCount(iteratingTstamp, creatime));
+        while (itrTstamp != curTstamp) {
+            nextTstamp = curTstamp;
+            diffInterval = (fullIntervalCount(nextTstamp, creatime) != fullIntervalCount(itrTstamp, creatime));
             if (diffInterval) {
-                nextTimestamp = creatime + autoReduceAPRInterval * (fullIntervalCount(iteratingTstamp, creatime) + 1);
+                nextTstamp = creatime + autoReduceAPRInterval * (fullIntervalCount(itrTstamp, creatime) + 1);
             }
-            deltaTimestamp = nextTimestamp - iteratingTstamp;
-            intervalReward = (((nodeBuyPrice * iteratingAPR) / HUNDRED_PERCENT) * deltaTimestamp) / UNIX_YEAR;
-            iteratingTstamp = nextTimestamp;
+            deltaTstamp = nextTstamp - itrTstamp;
+            intervalReward = (((nodeBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
+            itrTstamp = nextTstamp;
             result += intervalReward;
 
             if (diffInterval) {
-                iteratingAPR = reduceByPercent(iteratingAPR, int256(autoReduceAPRRate));
+                itrAPR = reduceByPercent(itrAPR, int256(autoReduceAPRRate));
             }
         }
         return result;
