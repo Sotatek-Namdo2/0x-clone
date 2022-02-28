@@ -7,12 +7,14 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/finance/PaymentSplitterUpgradeable.sol";
 import "./dependencies/NODERewardManagement.sol";
 import "./interfaces/IJoeRouter02.sol";
+import "./interfaces/IPinkAntiBot.sol";
 import "./interfaces/IJoeFactory.sol";
 
 contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, PaymentSplitterUpgradeable {
     NODERewardManagement public _nrm;
 
     IJoeRouter02 public uniswapV2Router;
+    IPinkAntiBot public pinkAntiBot;
 
     uint256 public ownedNodesLimit;
     uint256 private mintNodeLimit;
@@ -58,6 +60,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256[] memory balances,
         uint256[] memory fees,
         address uniV2Router,
+        address pinkAntiBot_,
         address usdcAddr
     ) public initializer {
         require(addresses.length > 0 && balances.length > 0, "ADDR & BALANCE ERROR");
@@ -113,6 +116,12 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         mintNodeLimit = 10;
         enableAutoSwap = true;
         swapTokensAmount = 0;
+
+        // Create an instance of the PinkAntiBot variable from the provided address
+        pinkAntiBot = IPinkAntiBot(pinkAntiBot_);
+        // Register the deployer to be the token owner with PinkAntiBot. You can
+        // later change the token owner in the PinkAntiBot contract
+        pinkAntiBot.setTokenOwner(msg.sender);
     }
 
     // ***** WRITE functions for admin *****
@@ -236,6 +245,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 amount
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
+        pinkAntiBot.onPreTransferCheck(from, to, amount);
 
         super._transfer(from, to, amount);
     }
