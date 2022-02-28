@@ -47,7 +47,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       execute: {
         init: {
           methodName: "initialize",
-          args: [payees, shares, addresses, balances, fees, uniV2Router, USDCToken],
+          args: [payees, shares, addresses, balances, fees, uniV2Router, 0 /*pink antibot*/, USDCToken],
         },
       },
     },
