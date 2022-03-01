@@ -14,6 +14,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
     IJoeRouter02 public uniswapV2Router;
 
+    uint256 private constant HUNDRED_PERCENT = 100_000_000;
+
     uint256 public ownedNodesLimit;
     uint256 private mintNodeLimit;
 
@@ -135,6 +137,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     function changeRewardAPRPerNode(ContractType _cType, int256 deductPcent) external onlyOwner {
+        require(deductPcent < int256(HUNDRED_PERCENT), "REDUCE_RWD: do not reduce more than 100%");
         _nrm._changeRewardAPRPerNode(_cType, deductPcent);
     }
 
@@ -401,7 +404,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     function getRewardAPRPerNode(ContractType _cType) external view returns (uint256) {
-        return _nrm.rewardAPRPerNode(_cType);
+        return _nrm.currentRewardAPRPerNewNode(_cType);
     }
 
     function getCashoutTimeout() external view returns (uint256) {

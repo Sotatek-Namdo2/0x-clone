@@ -38,7 +38,7 @@ contract NODERewardManagement is Initializable {
     mapping(address => NodeEntity[]) private _nodesOfUser;
 
     mapping(ContractType => uint256) public nodePrice;
-    mapping(ContractType => uint256) public rewardAPRPerNode;
+    mapping(ContractType => uint256) public initRewardAPRPerNode;
     mapping(ContractType => APRChangesEntry[]) private aprChangesHistory;
     uint256 public cashoutTimeout;
     uint256 public autoReduceAPRInterval;
@@ -62,7 +62,7 @@ contract NODERewardManagement is Initializable {
         uint256 initialTstamp = block.timestamp;
         for (uint256 i = 0; i < 3; i++) {
             nodePrice[ContractType(i)] = _nodePrices[i];
-            rewardAPRPerNode[ContractType(i)] = _rewardAPRs[i];
+            initRewardAPRPerNode[ContractType(i)] = _rewardAPRs[i];
             _totalNodesPerContractType[ContractType(i)] = 0;
             aprChangesHistory[ContractType(i)];
             aprChangesHistory[ContractType(i)].push(
@@ -95,6 +95,7 @@ contract NODERewardManagement is Initializable {
         ContractType _cType
     ) external onlyAuthorities {
         _nodesOfUser[account];
+        uint256 currentAPR = this.currentRewardAPRPerNewNode(_cType);
 
         for (uint256 i = 0; i < nodeNames.length; i++) {
             _nodesOfUser[account].push(
@@ -103,7 +104,7 @@ contract NODERewardManagement is Initializable {
                     creationTime: block.timestamp,
                     lastUpdateTime: block.timestamp,
                     buyPrice: nodePrice[_cType],
-                    initialAPR: rewardAPRPerNode[_cType],
+                    initialAPR: currentAPR,
                     cType: _cType
                 })
             );
@@ -155,10 +156,23 @@ contract NODERewardManagement is Initializable {
     }
 
     function _changeRewardAPRPerNode(ContractType _cType, int256 reducedPercentage) external onlyAuthorities {
-        rewardAPRPerNode[_cType] = reduceByPercent(rewardAPRPerNode[_cType], reducedPercentage);
+        require(reducedPercentage < int256(HUNDRED_PERCENT), "REDUCE_RWD: do not reduce more than 100%");
         aprChangesHistory[_cType].push(
             APRChangesEntry({ timestamp: block.timestamp, reducedPercentage: reducedPercentage })
         );
+    }
+
+    function _undoRewardAPRChange(ContractType _cType) external onlyAuthorities {
+        uint256 changesLength = aprChangesHistory[_cType].length;
+        require(changesLength > 1, "UNDO CHANGE: No changes found for cType");
+        aprChangesHistory[_cType].pop();
+    }
+
+    function _resetAllAPRChange(ContractType _cType, uint256 _initialPrice) external onlyAuthorities {
+        initRewardAPRPerNode[_cType] = _initialPrice;
+        uint256 initialTstamp = aprChangesHistory[_cType][0].timestamp;
+        delete aprChangesHistory[_cType];
+        aprChangesHistory[_cType].push(APRChangesEntry({ timestamp: initialTstamp, reducedPercentage: 0 }));
     }
 
     function _changeCashoutTimeout(uint256 newTime) external onlyAuthorities {
@@ -174,6 +188,15 @@ contract NODERewardManagement is Initializable {
     }
 
     // ----- External READ functions -----
+    function currentRewardAPRPerNewNode(ContractType _cType) external view returns (uint256) {
+        uint256 changesLength = aprChangesHistory[_cType].length;
+        uint256 result = initRewardAPRPerNode[_cType];
+        for (uint256 i = 0; i < changesLength; i++) {
+            result = reduceByPercent(result, aprChangesHistory[_cType][i].reducedPercentage);
+        }
+        return result;
+    }
+
     function totalNodesPerContractType(ContractType _cType) external view returns (uint256) {
         return _totalNodesPerContractType[_cType];
     }
