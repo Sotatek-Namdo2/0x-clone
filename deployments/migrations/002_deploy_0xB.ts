@@ -53,10 +53,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     },
   });
 
-  const NODERewardManagement = await deployments.get("NODERewardManagement");
+  const CONTRewardManagement = await deployments.get("CONTRewardManagement");
   const ZeroXBlocksV1 = await deployments.get("ZeroXBlocksV1");
-  await execute("NODERewardManagement", { from: deployer, log: true }, "setToken", ZeroXBlocksV1.address);
-  await execute("ZeroXBlocksV1", { from: deployer, log: true }, "setNodeManagement", NODERewardManagement.address);
+  await execute("CONTRewardManagement", { from: deployer, log: true }, "setToken", ZeroXBlocksV1.address);
+  await execute("ZeroXBlocksV1", { from: deployer, log: true }, "setContManagement", CONTRewardManagement.address);
 };
 
 func.tags = ["ZeroXBlocks"];

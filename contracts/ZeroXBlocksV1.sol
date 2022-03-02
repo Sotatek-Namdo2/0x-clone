@@ -5,19 +5,19 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/finance/PaymentSplitterUpgradeable.sol";
-import "./dependencies/NODERewardManagement.sol";
+import "./dependencies/CONTRewardManagement.sol";
 import "./interfaces/IJoeRouter02.sol";
 import "./interfaces/IJoeFactory.sol";
 
 contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, PaymentSplitterUpgradeable {
-    NODERewardManagement public _nrm;
+    CONTRewardManagement public _crm;
 
     IJoeRouter02 public uniswapV2Router;
 
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
 
-    uint256 public ownedNodesLimit;
-    uint256 private mintNodeLimit;
+    uint256 public ownedContsLimit;
+    uint256 private mintContLimit;
 
     address public uniswapV2Pair;
 
@@ -51,7 +51,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
     // ***** Enable Cashout *****
     bool public enableCashout = true;
-    bool public enableMintNodes = true;
+    bool public enableMintConts = true;
 
     // ***** Constructor *****
     function initialize(
@@ -112,8 +112,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         require(totalSupply() == 1012345e18, "TTL SUPPLY DIFF 1 MIL");
 
         usdcToken = usdcAddr;
-        ownedNodesLimit = 100;
-        mintNodeLimit = 10;
+        ownedContsLimit = 100;
+        mintContLimit = 10;
         enableAutoSwapTreasury = true;
         enableAutoSwapDevFund = true;
         swapTokensAmount = 0;
@@ -124,25 +124,25 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         enableCashout = _enableCashout;
     }
 
-    function setEnableMintNodes(bool value) external onlyOwner {
-        enableMintNodes = value;
+    function setEnableMintConts(bool value) external onlyOwner {
+        enableMintConts = value;
     }
 
-    function setNodeManagement(address nrm) external onlyOwner {
-        _nrm = NODERewardManagement(nrm);
+    function setContManagement(address crm) external onlyOwner {
+        _crm = CONTRewardManagement(crm);
     }
 
-    function changeNodePrice(ContractType _cType, uint256 newPrice) external onlyOwner {
-        _nrm._changeNodePrice(_cType, newPrice);
+    function changeContPrice(ContType _cType, uint256 newPrice) external onlyOwner {
+        _crm._changeContPrice(_cType, newPrice);
     }
 
-    function changeRewardAPRPerNode(ContractType _cType, int256 deductPcent) external onlyOwner {
+    function changeRewardAPRPerCont(ContType _cType, int256 deductPcent) external onlyOwner {
         require(deductPcent < int256(HUNDRED_PERCENT), "REDUCE_RWD: do not reduce more than 100%");
-        _nrm._changeRewardAPRPerNode(_cType, deductPcent);
+        _crm._changeRewardAPRPerCont(_cType, deductPcent);
     }
 
     function changeCashoutTimeout(uint256 newTime) external onlyOwner {
-        _nrm._changeCashoutTimeout(newTime);
+        _crm._changeCashoutTimeout(newTime);
     }
 
     function updateUniswapV2Router(address newAddress) external onlyOwner {
@@ -235,8 +235,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         automatedMarketMakerPairs[pair] = value;
     }
 
-    function getNodeNumberOf(address account) private view returns (uint256) {
-        return _nrm._getNodeNumberOf(account);
+    function getContNumberOf(address account) private view returns (uint256) {
+        return _crm._getContNumberOf(account);
     }
 
     function _transfer(
@@ -283,28 +283,28 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** WRITE functions for public *****
-    function mintNodes(string[] memory names, ContractType _cType) external {
-        require(enableMintNodes, "NODEMINT: mint nodes disabled");
-        require(names.length <= mintNodeLimit, "NODEMINT: too many nodes");
+    function mintConts(string[] memory names, ContType _cType) external {
+        require(enableMintConts, "CONTMINT: mint conts disabled");
+        require(names.length <= mintContLimit, "CONTMINT: too many conts");
         for (uint256 i = 0; i < names.length; i++) {
-            require(bytes(names[i]).length > 3 && bytes(names[i]).length < 33, "NODEMINT: improper character count");
+            require(bytes(names[i]).length > 3 && bytes(names[i]).length < 33, "CONTMINT: improper character count");
         }
 
         address sender = _msgSender();
-        require(sender != address(0), "NODEMINT: zero address");
-        require(!_isBlacklisted[sender], "NODEMINT: blacklisted address");
+        require(sender != address(0), "CONTMINT: zero address");
+        require(!_isBlacklisted[sender], "CONTMINT: blacklisted address");
         require(
             sender != developmentFundPool && sender != rewardsPool && sender != treasuryPool,
-            "NODEMINT: pools cannot create node"
+            "CONTMINT: pools cannot create cont"
         );
-        uint256 nodeCount = getNodeNumberOf(sender);
-        require(nodeCount + names.length <= ownedNodesLimit, "NODEMINT: reached mint limit");
-        uint256 nodesPrice = _nrm.nodePrice(_cType) * names.length;
-        totalTokensPaidForMinting += nodesPrice;
-        require(balanceOf(sender) >= nodesPrice, "NODEMINT: Balance too low for creation.");
+        uint256 contCount = getContNumberOf(sender);
+        require(contCount + names.length <= ownedContsLimit, "CONTMINT: reached mint limit");
+        uint256 contsPrice = _crm.contPrice(_cType) * names.length;
+        totalTokensPaidForMinting += contsPrice;
+        require(balanceOf(sender) >= contsPrice, "CONTMINT: Balance too low for creation.");
 
         // DEV FUND
-        uint256 developmentFundTokens = (nodesPrice * developmentFee) / 100;
+        uint256 developmentFundTokens = (contsPrice * developmentFee) / 100;
         if (enableAutoSwapDevFund) {
             super._transfer(sender, address(this), developmentFundTokens);
             swapUSDCSendTo(developmentFundPool, developmentFundTokens);
@@ -313,11 +313,11 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         }
 
         // REWARDS POOL
-        uint256 rewardsPoolTokens = (nodesPrice * rewardsFee) / 100;
+        uint256 rewardsPoolTokens = (contsPrice * rewardsFee) / 100;
         super._transfer(sender, rewardsPool, rewardsPoolTokens);
 
         // TREASURY
-        uint256 treasuryPoolTokens = (nodesPrice * treasuryFee) / 100;
+        uint256 treasuryPoolTokens = (contsPrice * treasuryFee) / 100;
         if (enableAutoSwapTreasury) {
             super._transfer(sender, address(this), treasuryPoolTokens);
             swapUSDCSendTo(treasuryPool, treasuryPoolTokens);
@@ -326,21 +326,21 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         }
 
         // LIQUIDITY
-        uint256 liquidityTokens = (nodesPrice * liquidityPoolFee) / 100;
+        uint256 liquidityTokens = (contsPrice * liquidityPoolFee) / 100;
         super._transfer(sender, liquidityPool, liquidityTokens - liquidityTokens / 2);
         super._transfer(sender, address(this), liquidityTokens / 2);
         swapAVAXSendTo(liquidityPool, liquidityTokens / 2);
 
         // EXTRA
-        uint256 extraT = nodesPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
+        uint256 extraT = contsPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
         if (extraT > 0) {
             super._transfer(sender, address(this), extraT);
         }
 
-        _nrm.createNodes(sender, names, _cType);
+        _crm.createConts(sender, names, _cType);
     }
 
-    function cashoutReward(uint256 _nodeIndex) external {
+    function cashoutReward(uint256 _contIndex) external {
         address sender = _msgSender();
         require(enableCashout == true, "CSHT: Cashout Disabled");
         require(sender != address(0), "CSHT: zero address");
@@ -349,7 +349,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
             sender != developmentFundPool && sender != rewardsPool && sender != treasuryPool,
             "CSHT: future and reward pools cannot cashout rewards"
         );
-        uint256 rewardAmount = _nrm._getRewardAmountOf(sender, _nodeIndex);
+        uint256 rewardAmount = _crm._getRewardAmountOf(sender, _contIndex);
         require(rewardAmount > 0, "CSHT: your reward is not ready yet");
 
         uint256 feeAmount = 0;
@@ -362,7 +362,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         rewardAmount -= feeAmount;
 
         super._transfer(rewardsPool, sender, rewardAmount);
-        _nrm._cashoutNodeReward(sender, _nodeIndex);
+        _crm._cashoutContReward(sender, _contIndex);
     }
 
     function cashoutAll() external {
@@ -371,7 +371,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         require(sender != address(0), "CSHTALL: zero address");
         require(!_isBlacklisted[sender], "CSHTALL: blacklisted address");
         require(sender != developmentFundPool && sender != rewardsPool, "CSHTALL: pools cannot cashout");
-        uint256 rewardAmount = _nrm._getRewardAmountOf(sender);
+        uint256 rewardAmount = _crm._getRewardAmountOf(sender);
         require(rewardAmount > 0, "CSHTALL: reward not ready");
 
         // LIQUIDITY POOL
@@ -385,79 +385,79 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         rewardAmount -= feeAmount;
 
         super._transfer(rewardsPool, sender, rewardAmount);
-        _nrm._cashoutAllNodesReward(sender);
+        _crm._cashoutAllContsReward(sender);
     }
 
     // ***** READ function for public *****
     function getRewardAmountOf(address account) external view onlyOwner returns (uint256) {
-        return _nrm._getRewardAmountOf(account);
+        return _crm._getRewardAmountOf(account);
     }
 
     function getRewardAmount() external view returns (uint256) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return _nrm._getRewardAmountOf(_msgSender());
+        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
+        return _crm._getRewardAmountOf(_msgSender());
     }
 
-    function getNodePrice(ContractType _cType) external view returns (uint256) {
-        return _nrm.nodePrice(_cType);
+    function getContPrice(ContType _cType) external view returns (uint256) {
+        return _crm.contPrice(_cType);
     }
 
-    function getRewardAPRPerNode(ContractType _cType) external view returns (uint256) {
-        return _nrm.currentRewardAPRPerNewNode(_cType);
+    function getRewardAPRPerCont(ContType _cType) external view returns (uint256) {
+        return _crm.currentRewardAPRPerNewCont(_cType);
     }
 
     function getCashoutTimeout() external view returns (uint256) {
-        return _nrm.cashoutTimeout();
+        return _crm.cashoutTimeout();
     }
 
-    function getNodesNames() external view returns (string memory) {
+    function getContsNames() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return _nrm._getNodesNames(_msgSender());
+        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
+        return _crm._getContsNames(_msgSender());
     }
 
-    function getNodesCurrentAPR() external view returns (string memory) {
+    function getContsCurrentAPR() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return _nrm._getNodesCurrentAPR(_msgSender());
+        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
+        return _crm._getContsCurrentAPR(_msgSender());
     }
 
-    function getNodesInitialAPR() external view returns (string memory) {
+    function getContsInitialAPR() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return _nrm._getNodesInitialAPR(_msgSender());
+        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
+        return _crm._getContsInitialAPR(_msgSender());
     }
 
-    function getNodesCreationTime() external view returns (string memory) {
+    function getContsCreationTime() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return _nrm._getNodesCreationTime(_msgSender());
+        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
+        return _crm._getContsCreationTime(_msgSender());
     }
 
-    function getNodesTypes() external view returns (string memory) {
+    function getContsTypes() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return _nrm._getNodesTypes(_msgSender());
+        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
+        return _crm._getContsTypes(_msgSender());
     }
 
-    function getNodesRewards() external view returns (string memory) {
+    function getContsRewards() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return _nrm._getNodesRewardAvailable(_msgSender());
+        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
+        return _crm._getContsRewardAvailable(_msgSender());
     }
 
-    function getNodesLastCashoutTime() external view returns (string memory) {
+    function getContsLastCashoutTime() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_nrm._isNodeOwner(_msgSender()), "NO NODE OWNER");
-        return _nrm._getNodesLastUpdateTime(_msgSender());
+        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
+        return _crm._getContsLastUpdateTime(_msgSender());
     }
 
-    function getTotalNodes() external view returns (uint256) {
-        return _nrm.totalNodesCreated();
+    function getTotalConts() external view returns (uint256) {
+        return _crm.totalContsCreated();
     }
 
-    function getTotalNodesPerContractType(ContractType __cType) external view returns (uint256) {
-        return _nrm.totalNodesPerContractType(__cType);
+    function getTotalContsPerContType(ContType __cType) external view returns (uint256) {
+        return _crm.totalContsPerContType(__cType);
     }
 }
