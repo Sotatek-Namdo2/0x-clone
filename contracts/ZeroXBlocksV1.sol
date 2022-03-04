@@ -285,6 +285,11 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         );
     }
 
+    function provideLiquidity(address targetWallet, uint256 tokens) private {
+        _approve(address(this), address(uniswapV2Router), tokens);
+        uniswapV2Router.addLiquidityAVAX(address(this), tokens, 0, 0, targetWallet, block.timestamp + 360);
+    }
+
     // ***** WRITE functions for public *****
     function mintConts(string[] memory names, ContType _cType) external {
         require(enableMintConts, "CONTMINT: mint conts disabled");
@@ -330,9 +335,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         // LIQUIDITY
         uint256 liquidityTokens = (contsPrice * liquidityPoolFee) / 100;
-        super._transfer(sender, liquidityPool, liquidityTokens - liquidityTokens / 2);
-        super._transfer(sender, address(this), liquidityTokens / 2);
-        swapAVAXSendTo(liquidityPool, liquidityTokens / 2);
+        _approve(address(this), address(uniswapV2Router), liquidityTokens);
+        provideLiquidity(liquidityPool, liquidityTokens);
 
         // EXTRA
         uint256 extraT = contsPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
@@ -358,9 +362,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            super._transfer(rewardsPool, liquidityPool, feeAmount - feeAmount / 2);
-            super._transfer(rewardsPool, address(this), feeAmount / 2);
-            swapAVAXSendTo(liquidityPool, feeAmount / 2);
+            uniswapV2Router.addLiquidityAVAX(address(this), feeAmount, 0, 0, liquidityPool, block.timestamp + 360);
         }
         rewardAmount -= feeAmount;
 
@@ -377,13 +379,11 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 rewardAmount = _crm._getRewardAmountOf(sender);
         require(rewardAmount > 0, "CSHTALL: reward not ready");
 
-        // LIQUIDITY POOL
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            super._transfer(rewardsPool, liquidityPool, feeAmount - feeAmount / 2);
-            super._transfer(rewardsPool, address(this), feeAmount / 2);
-            swapAVAXSendTo(liquidityPool, feeAmount / 2);
+            _approve(address(this), address(uniswapV2Router), feeAmount);
+            provideLiquidity(liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 

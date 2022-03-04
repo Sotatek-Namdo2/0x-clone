@@ -34,9 +34,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const liquidityPoolFee = 20;
   const cashoutFee = 10;
   const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
-  const uniV2Router = "0x5db0735cf88f85e78ed742215090c465979b5006";
+  const uniV2Router = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4";
 
-  const USDCToken = "0x2aa53D89Bc2453b163ee6376278A545C8b3DaB52"; // fake USDC Address on testnet
+  const USDCToken = "0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664"; // fake USDC Address on testnet
 
   await deploy("ZeroXBlocksV1", {
     from: deployer,
