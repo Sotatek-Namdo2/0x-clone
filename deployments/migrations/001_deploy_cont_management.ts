@@ -13,7 +13,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     return;
   }
 
-  const nodePrices = [
+  const contPrices = [
     utils.parseEther("5"), // Square
     utils.parseEther("15"), // Cube
     utils.parseEther("30"), // Tesseract
@@ -26,7 +26,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   ];
   const autoReduceAPRRate = 30_000_000;
   const cashoutTimeout = 1;
-  await deploy("NODERewardManagement", {
+  await deploy("CONTRewardManagement", {
     from: deployer,
     proxy: {
       owner: deployer,
@@ -34,7 +34,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       execute: {
         init: {
           methodName: "initialize",
-          args: [nodePrices, rewardAPRs, cashoutTimeout, autoReduceAPRRate],
+          args: [contPrices, rewardAPRs, cashoutTimeout, autoReduceAPRRate],
         },
       },
     },
@@ -42,5 +42,5 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   });
 };
 
-func.tags = ["Node"];
+func.tags = ["Cont"];
 export default func;
