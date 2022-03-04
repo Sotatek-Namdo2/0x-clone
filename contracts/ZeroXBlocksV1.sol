@@ -40,7 +40,6 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     // ***** Storage for swapping *****
     bool public enableAutoSwapTreasury;
     bool public enableAutoSwapDevFund;
-    uint256 public swapTokensAmount;
     address public usdcToken;
 
     // ***** Blacklist storage *****
@@ -116,7 +115,6 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         mintContLimit = 10;
         enableAutoSwapTreasury = true;
         enableAutoSwapDevFund = true;
-        swapTokensAmount = 0;
     }
 
     // ***** WRITE functions for admin *****
@@ -153,10 +151,6 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
             uniswapV2Router.WAVAX()
         );
         uniswapV2Pair = _uniswapV2Pair;
-    }
-
-    function updateSwapTokensAmount(uint256 newVal) external onlyOwner {
-        swapTokensAmount = newVal;
     }
 
     function updateDevelopmentFundWallet(address payable wall) external onlyOwner {
