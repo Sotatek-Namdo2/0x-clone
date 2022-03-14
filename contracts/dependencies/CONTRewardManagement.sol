@@ -80,10 +80,12 @@ contract CONTRewardManagement is Initializable {
 
     // ----- External WRITE functions -----
     function setAdmin(address newAdmin) external onlyAuthorities {
+        require(newAdmin != address(0), "zero address");
         admin0XB = newAdmin;
     }
 
     function setToken(address token_) external onlyAuthorities {
+        require(token_ != address(0), "zero address");
         token = token_;
     }
 

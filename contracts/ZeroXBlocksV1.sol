@@ -79,18 +79,18 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         __ERC20_init("0xBlocks v1", "0XB");
         __PaymentSplitter_init(payees, shares);
 
+        require(
+            addresses[1] != address(0) &&
+                addresses[2] != address(0) &&
+                addresses[3] != address(0) &&
+                addresses[4] != address(0),
+            "POOL ZERO FOUND"
+        );
+
         developmentFundPool = addresses[1];
         liquidityPool = addresses[2];
         treasuryPool = addresses[3];
         rewardsPool = addresses[4];
-
-        require(
-            developmentFundPool != address(0) &&
-                liquidityPool != address(0) &&
-                treasuryPool != address(0) &&
-                rewardsPool != address(0),
-            "POOL ZERO FOUND"
-        );
 
         require(uniV2Router != address(0), "ROUTER ZERO");
         IJoeRouter02 _uniswapV2Router = IJoeRouter02(uniV2Router);
@@ -134,6 +134,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
     // ***** WRITE functions for admin *****
     function changeAntiBotAddress(address newAddress) external onlyOwner {
+        require(newAddress != address(0), "NEW ANTI-BOT: zero address");
         pinkAntiBot = IPinkAntiBot(newAddress);
     }
 
@@ -150,6 +151,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     function setContManagement(address crm) external onlyOwner {
+        require(crm != address(0), "NEW_CRM: zero addr");
         _crm = CONTRewardManagement(crm);
     }
 
@@ -177,18 +179,22 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     function updateDevelopmentFundWallet(address payable wall) external onlyOwner {
+        require(wall != address(0), "UPD_WALL: zero addr");
         developmentFundPool = wall;
     }
 
     function updateLiquidityWallet(address payable wall) external onlyOwner {
+        require(wall != address(0), "UPD_WALL: zero addr");
         liquidityPool = wall;
     }
 
     function updateRewardsWallet(address payable wall) external onlyOwner {
+        require(wall != address(0), "UPD_WALL: zero addr");
         rewardsPool = wall;
     }
 
     function updateTreasuryWallet(address payable wall) external onlyOwner {
+        require(wall != address(0), "UPD_WALL: zero addr");
         treasuryPool = wall;
     }
 
@@ -411,7 +417,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** READ function for public *****
-    function getRewardAmountOf(address account) external view onlyOwner returns (uint256) {
+    function getRewardAmountOf(address account) external view returns (uint256) {
         return _crm._getRewardAmountOf(account);
     }
 
