@@ -14,7 +14,6 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     CONTRewardManagement public _crm;
 
     IJoeRouter02 public uniswapV2Router;
-    IPinkAntiBot public pinkAntiBot;
 
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
 
@@ -44,6 +43,10 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     bool public enableAutoSwapDevFund;
     address public usdcToken;
 
+    // ***** Anti-bot *****
+    IPinkAntiBot public pinkAntiBot;
+    bool public antiBotEnabled;
+
     // ***** Blacklist storage *****
     mapping(address => bool) public _isBlacklisted;
 
@@ -53,6 +56,11 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     // ***** Enable Cashout *****
     bool public enableCashout = true;
     bool public enableMintConts = true;
+
+    // ***** Events *****
+    event ContsMinted(address sender);
+    event RewardCashoutOne(address sender, uint256 index);
+    event RewardCashoutAll(address sender);
 
     // ***** Constructor *****
     function initialize(
@@ -119,14 +127,20 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         enableAutoSwapTreasury = true;
         enableAutoSwapDevFund = true;
 
-        // Create an instance of the PinkAntiBot variable from the provided address
         pinkAntiBot = IPinkAntiBot(pinkAntiBot_);
-        // Register the deployer to be the token owner with PinkAntiBot. You can
-        // later change the token owner in the PinkAntiBot contract
         pinkAntiBot.setTokenOwner(msg.sender);
+        antiBotEnabled = false;
     }
 
     // ***** WRITE functions for admin *****
+    function changeAntiBotAddress(address newAddress) external onlyOwner {
+        pinkAntiBot = IPinkAntiBot(newAddress);
+    }
+
+    function setEnableAntiBot(bool _enable) external onlyOwner {
+        antiBotEnabled = _enable;
+    }
+
     function setEnableCashout(bool _enableCashout) external onlyOwner {
         enableCashout = _enableCashout;
     }
@@ -248,7 +262,9 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 amount
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
-
+        if (antiBotEnabled) {
+            pinkAntiBot.onPreTransferCheck(from, to, amount);
+        }
         super._transfer(from, to, amount);
     }
 
@@ -345,6 +361,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         }
 
         _crm.createConts(sender, names, _cType);
+        emit ContsMinted(sender);
     }
 
     function cashoutReward(uint256 _contIndex) external {
@@ -368,6 +385,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         super._transfer(rewardsPool, sender, rewardAmount);
         _crm._cashoutContReward(sender, _contIndex);
+        emit RewardCashoutOne(sender, _contIndex);
     }
 
     function cashoutAll() external {
@@ -389,6 +407,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         super._transfer(rewardsPool, sender, rewardAmount);
         _crm._cashoutAllContsReward(sender);
+        emit RewardCashoutAll(sender);
     }
 
     // ***** READ function for public *****
