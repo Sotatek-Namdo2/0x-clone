@@ -52,6 +52,11 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     bool public enableCashout = true;
     bool public enableMintConts = true;
 
+    // ***** Events *****
+    event ContsMinted(address sender);
+    event RewardCashoutOne(address sender, uint256 index);
+    event RewardCashoutAll(address sender);
+
     // ***** Constructor *****
     function initialize(
         address[] memory payees,
@@ -332,6 +337,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         }
 
         _crm.createConts(sender, names, _cType);
+        emit ContsMinted(sender);
     }
 
     function cashoutReward(uint256 _contIndex) external {
@@ -357,6 +363,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         super._transfer(rewardsPool, sender, rewardAmount);
         _crm._cashoutContReward(sender, _contIndex);
+        emit RewardCashoutOne(sender, _contIndex);
     }
 
     function cashoutAll() external {
@@ -380,6 +387,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         super._transfer(rewardsPool, sender, rewardAmount);
         _crm._cashoutAllContsReward(sender);
+        emit RewardCashoutAll(sender);
     }
 
     // ***** READ function for public *****
