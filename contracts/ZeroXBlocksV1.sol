@@ -7,6 +7,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/finance/PaymentSplitterUpgradeable.sol";
 import "./dependencies/CONTRewardManagement.sol";
 import "./interfaces/IJoeRouter02.sol";
+import "./interfaces/IPinkAntiBot.sol";
 import "./interfaces/IJoeFactory.sol";
 
 contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, PaymentSplitterUpgradeable {
@@ -42,6 +43,10 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     bool public enableAutoSwapDevFund;
     address public usdcToken;
 
+    // ***** Anti-bot *****
+    IPinkAntiBot public pinkAntiBot;
+    bool public antiBotEnabled;
+
     // ***** Blacklist storage *****
     mapping(address => bool) public _isBlacklisted;
 
@@ -65,6 +70,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256[] memory balances,
         uint256[] memory fees,
         address uniV2Router,
+        address pinkAntiBot_,
         address usdcAddr
     ) public initializer {
         require(addresses.length > 0 && balances.length > 0, "ADDR & BALANCE ERROR");
@@ -73,18 +79,18 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         __ERC20_init("0xBlocks v1", "0XB");
         __PaymentSplitter_init(payees, shares);
 
+        require(
+            addresses[1] != address(0) &&
+                addresses[2] != address(0) &&
+                addresses[3] != address(0) &&
+                addresses[4] != address(0),
+            "POOL ZERO FOUND"
+        );
+
         developmentFundPool = addresses[1];
         liquidityPool = addresses[2];
         treasuryPool = addresses[3];
         rewardsPool = addresses[4];
-
-        require(
-            developmentFundPool != address(0) &&
-                liquidityPool != address(0) &&
-                treasuryPool != address(0) &&
-                rewardsPool != address(0),
-            "POOL ZERO FOUND"
-        );
 
         require(uniV2Router != address(0), "ROUTER ZERO");
         IJoeRouter02 _uniswapV2Router = IJoeRouter02(uniV2Router);
@@ -120,9 +126,22 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         mintContLimit = 10;
         enableAutoSwapTreasury = true;
         enableAutoSwapDevFund = true;
+
+        pinkAntiBot = IPinkAntiBot(pinkAntiBot_);
+        pinkAntiBot.setTokenOwner(msg.sender);
+        antiBotEnabled = false;
     }
 
     // ***** WRITE functions for admin *****
+    function changeAntiBotAddress(address newAddress) external onlyOwner {
+        require(newAddress != address(0), "NEW ANTI-BOT: zero address");
+        pinkAntiBot = IPinkAntiBot(newAddress);
+    }
+
+    function setEnableAntiBot(bool _enable) external onlyOwner {
+        antiBotEnabled = _enable;
+    }
+
     function setEnableCashout(bool _enableCashout) external onlyOwner {
         enableCashout = _enableCashout;
     }
@@ -132,6 +151,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     function setContManagement(address crm) external onlyOwner {
+        require(crm != address(0), "NEW_CRM: zero addr");
         _crm = CONTRewardManagement(crm);
     }
 
@@ -159,18 +179,22 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     function updateDevelopmentFundWallet(address payable wall) external onlyOwner {
+        require(wall != address(0), "UPD_WALL: zero addr");
         developmentFundPool = wall;
     }
 
     function updateLiquidityWallet(address payable wall) external onlyOwner {
+        require(wall != address(0), "UPD_WALL: zero addr");
         liquidityPool = wall;
     }
 
     function updateRewardsWallet(address payable wall) external onlyOwner {
+        require(wall != address(0), "UPD_WALL: zero addr");
         rewardsPool = wall;
     }
 
     function updateTreasuryWallet(address payable wall) external onlyOwner {
+        require(wall != address(0), "UPD_WALL: zero addr");
         treasuryPool = wall;
     }
 
@@ -244,7 +268,9 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 amount
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
-
+        if (antiBotEnabled) {
+            pinkAntiBot.onPreTransferCheck(from, to, amount);
+        }
         super._transfer(from, to, amount);
     }
 
@@ -279,6 +305,11 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
             targetWallet,
             block.timestamp
         );
+    }
+
+    function provideLiquidity(address targetWallet, uint256 tokens) private {
+        _approve(address(this), address(uniswapV2Router), tokens);
+        uniswapV2Router.addLiquidityAVAX(address(this), tokens, 0, 0, targetWallet, block.timestamp + 360);
     }
 
     // ***** WRITE functions for public *****
@@ -326,9 +357,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         // LIQUIDITY
         uint256 liquidityTokens = (contsPrice * liquidityPoolFee) / 100;
-        super._transfer(sender, liquidityPool, liquidityTokens - liquidityTokens / 2);
-        super._transfer(sender, address(this), liquidityTokens / 2);
-        swapAVAXSendTo(liquidityPool, liquidityTokens / 2);
+        _approve(address(this), address(uniswapV2Router), liquidityTokens);
+        provideLiquidity(liquidityPool, liquidityTokens);
 
         // EXTRA
         uint256 extraT = contsPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
@@ -355,9 +385,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            super._transfer(rewardsPool, liquidityPool, feeAmount - feeAmount / 2);
-            super._transfer(rewardsPool, address(this), feeAmount / 2);
-            swapAVAXSendTo(liquidityPool, feeAmount / 2);
+            uniswapV2Router.addLiquidityAVAX(address(this), feeAmount, 0, 0, liquidityPool, block.timestamp + 360);
         }
         rewardAmount -= feeAmount;
 
@@ -375,13 +403,11 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 rewardAmount = _crm._getRewardAmountOf(sender);
         require(rewardAmount > 0, "CSHTALL: reward not ready");
 
-        // LIQUIDITY POOL
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            super._transfer(rewardsPool, liquidityPool, feeAmount - feeAmount / 2);
-            super._transfer(rewardsPool, address(this), feeAmount / 2);
-            swapAVAXSendTo(liquidityPool, feeAmount / 2);
+            _approve(address(this), address(uniswapV2Router), feeAmount);
+            provideLiquidity(liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
@@ -391,7 +417,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** READ function for public *****
-    function getRewardAmountOf(address account) external view onlyOwner returns (uint256) {
+    function getRewardAmountOf(address account) external view returns (uint256) {
         return _crm._getRewardAmountOf(account);
     }
 
