@@ -313,6 +313,16 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** WRITE functions for public *****
+    function provideLiquidityPublic(uint256 tokens) external {
+        address sender = _msgSender();
+        require(sender != address(0), "CONTMINT: zero address");
+        require(!_isBlacklisted[sender], "CONTMINT: blacklisted address");
+        require(balanceOf(sender) >= tokens, "CONTMINT: Balance too low for creation.");
+
+        _transfer(sender, address(this), tokens);
+        provideLiquidity(sender, tokens);
+    }
+
     function mintConts(string[] memory names, ContType _cType) external {
         require(enableMintConts, "CONTMINT: mint conts disabled");
         require(names.length <= mintContLimit, "CONTMINT: too many conts");
