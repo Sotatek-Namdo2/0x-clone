@@ -34,9 +34,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const liquidityPoolFee = 20;
   const cashoutFee = 10;
   const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
-  const uniV2Router = "0x5db0735cf88f85e78ed742215090c465979b5006";
+  const uniV2Router = "0x7e2528476b14507f003ae9d123334977f5ad7b14"; // TraderJoe router
 
-  const USDCToken = "0x2aa53D89Bc2453b163ee6376278A545C8b3DaB52"; // fake USDC Address on testnet
+  const USDCToken = "0xeb8f08a975ab53e34d8a0330e0d34de942c95926"; // USDC on Rinkeby
+  const pinkToken = "0x000000000000000000000000000000000000dead";
 
   await deploy("ZeroXBlocksV1", {
     from: deployer,
@@ -47,7 +48,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       execute: {
         init: {
           methodName: "initialize",
-          args: [payees, shares, addresses, balances, fees, uniV2Router, USDCToken],
+          args: [payees, shares, addresses, balances, fees, uniV2Router, pinkToken, USDCToken],
         },
       },
     },

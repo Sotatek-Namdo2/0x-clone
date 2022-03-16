@@ -45,7 +45,7 @@ if (!alchemyApiKey) {
 }
 
 function getChainConfig(network: keyof typeof chainIds): NetworkUserConfig {
-  const url: string = "https://eth-" + network + ".alchemyapi.io/v3/" + alchemyApiKey;
+  const url: string = "https://eth-" + network + ".alchemyapi.io/v2/" + alchemyApiKey;
   return {
     accounts,
     chainId: chainIds[network],

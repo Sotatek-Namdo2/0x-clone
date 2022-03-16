@@ -44,7 +44,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     address public usdcToken;
 
     // ***** Anti-bot *****
-    IPinkAntiBot public pinkAntiBot;
+    address public pinkAntiBot;
     bool public antiBotEnabled;
 
     // ***** Blacklist storage *****
@@ -127,15 +127,15 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         enableAutoSwapTreasury = true;
         enableAutoSwapDevFund = true;
 
-        pinkAntiBot = IPinkAntiBot(pinkAntiBot_);
-        pinkAntiBot.setTokenOwner(msg.sender);
+        pinkAntiBot = pinkAntiBot_;
+        // pinkAntiBot.setTokenOwner(msg.sender);
         antiBotEnabled = false;
     }
 
     // ***** WRITE functions for admin *****
     function changeAntiBotAddress(address newAddress) external onlyOwner {
         require(newAddress != address(0), "NEW ANTI-BOT: zero address");
-        pinkAntiBot = IPinkAntiBot(newAddress);
+        pinkAntiBot = newAddress;
     }
 
     function setEnableAntiBot(bool _enable) external onlyOwner {
@@ -268,9 +268,9 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 amount
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
-        if (antiBotEnabled) {
-            pinkAntiBot.onPreTransferCheck(from, to, amount);
-        }
+        // if (antiBotEnabled) {
+        // pinkAntiBot.onPreTransferCheck(from, to, amount);
+        // }
         super._transfer(from, to, amount);
     }
 
