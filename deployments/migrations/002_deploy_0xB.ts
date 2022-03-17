@@ -36,7 +36,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
   const uniV2Router = "0x7e2528476b14507f003ae9d123334977f5ad7b14"; // TraderJoe router
 
-  const USDCToken = "0xeb8f08a975ab53e34d8a0330e0d34de942c95926"; // USDC on Rinkeby
+  const USDCToken = "0x5b8470fbc6b31038aa07abd3010acffca6e36611"; // USDC on Rinkeby
   const pinkToken = "0x000000000000000000000000000000000000dead";
 
   await deploy("ZeroXBlocksV1", {

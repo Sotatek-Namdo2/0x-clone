@@ -54,8 +54,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     mapping(address => bool) public automatedMarketMakerPairs;
 
     // ***** Enable Cashout *****
-    bool public enableCashout = true;
-    bool public enableMintConts = true;
+    bool public enableCashout;
+    bool public enableMintConts;
 
     // ***** Events *****
     event ContsMinted(address sender);
@@ -126,6 +126,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         mintContLimit = 10;
         enableAutoSwapTreasury = true;
         enableAutoSwapDevFund = true;
+        enableMintConts = true;
+        enableCashout = true;
 
         pinkAntiBot = pinkAntiBot_;
         // pinkAntiBot.setTokenOwner(msg.sender);
@@ -133,6 +135,10 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** WRITE functions for admin *****
+    function setUSDCAddress(address newAddress) external onlyOwner {
+        usdcToken = newAddress;
+    }
+
     function changeAntiBotAddress(address newAddress) external onlyOwner {
         require(newAddress != address(0), "NEW ANTI-BOT: zero address");
         pinkAntiBot = newAddress;
@@ -307,9 +313,13 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         );
     }
 
-    function provideLiquidity(address targetWallet, uint256 tokens) private {
-        _approve(address(this), address(uniswapV2Router), tokens);
-        uniswapV2Router.addLiquidityAVAX(address(this), tokens, 0, 0, targetWallet, block.timestamp + 360);
+    function provideLiquidity(
+        address sender,
+        address targetWallet,
+        uint256 tokens
+    ) private {
+        _approve(sender, address(uniswapV2Router), tokens);
+        uniswapV2Router.addLiquidityAVAX(address(this), tokens, 0, 0, targetWallet, (block.timestamp + 120) * 1000);
     }
 
     // ***** WRITE functions for public *****
@@ -317,10 +327,28 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         address sender = _msgSender();
         require(sender != address(0), "CONTMINT: zero address");
         require(!_isBlacklisted[sender], "CONTMINT: blacklisted address");
-        require(balanceOf(sender) >= tokens, "CONTMINT: Balance too low for creation.");
+        require(balanceOf(sender) >= tokens, "CONTMINT: Balance too low");
 
         _transfer(sender, address(this), tokens);
-        provideLiquidity(sender, tokens);
+        provideLiquidity(sender, sender, tokens);
+    }
+
+    function swapUSDC(uint256 tokens) external {
+        address sender = _msgSender();
+        require(sender != address(0), "CONTMINT: zero address");
+        require(!_isBlacklisted[sender], "CONTMINT: blacklisted address");
+        require(balanceOf(sender) >= tokens, "CONTMINT: Balance too low");
+
+        swapUSDCSendTo(sender, tokens);
+    }
+
+    function swapAVAX(uint256 tokens) external {
+        address sender = _msgSender();
+        require(sender != address(0), "CONTMINT: zero address");
+        require(!_isBlacklisted[sender], "CONTMINT: blacklisted address");
+        require(balanceOf(sender) >= tokens, "CONTMINT: Balance too low");
+
+        swapAVAXSendTo(sender, tokens);
     }
 
     function mintConts(string[] memory names, ContType _cType) external {
@@ -367,8 +395,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         // LIQUIDITY
         uint256 liquidityTokens = (contsPrice * liquidityPoolFee) / 100;
-        _approve(address(this), address(uniswapV2Router), liquidityTokens);
-        provideLiquidity(liquidityPool, liquidityTokens);
+        // provideLiquidity(sender, liquidityPool, liquidityTokens);
 
         // EXTRA
         uint256 extraT = contsPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
@@ -416,8 +443,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            _approve(address(this), address(uniswapV2Router), feeAmount);
-            provideLiquidity(liquidityPool, feeAmount);
+            // provideLiquidity(sender, liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
@@ -427,13 +453,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** READ function for public *****
-    function getRewardAmountOf(address account) external view returns (uint256) {
-        return _crm._getRewardAmountOf(account);
-    }
-
     function getRewardAmount() external view returns (uint256) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getRewardAmountOf(_msgSender());
     }
 
@@ -451,43 +472,36 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
     function getContsNames() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsNames(_msgSender());
     }
 
     function getContsCurrentAPR() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsCurrentAPR(_msgSender());
     }
 
     function getContsInitialAPR() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsInitialAPR(_msgSender());
     }
 
     function getContsCreationTime() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsCreationTime(_msgSender());
     }
 
     function getContsTypes() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsTypes(_msgSender());
     }
 
     function getContsRewards() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsRewardAvailable(_msgSender());
     }
 
     function getContsLastCashoutTime() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsLastUpdateTime(_msgSender());
     }
 
