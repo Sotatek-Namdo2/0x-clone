@@ -36,7 +36,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
   const uniV2Router = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4";
 
-  const USDCToken = "0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664"; // fake USDC Address on testnet
+  const USDCToken = process.env.USDC_TOKEN_ADDRESS;
 
   await deploy("ZeroXBlocksV1", {
     from: deployer,
@@ -47,7 +47,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       execute: {
         init: {
           methodName: "initialize",
-          args: [payees, shares, addresses, balances, fees, uniV2Router, 0 /*pink antibot*/, USDCToken],
+          args: [payees, shares, addresses, balances, fees, uniV2Router, USDCToken],
         },
       },
     },

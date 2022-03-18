@@ -34,18 +34,18 @@ export const chainIds = {
 // Ensure that we have all the environment variables we need.
 const deployerPrivateKey: string | undefined = process.env.DEPLOYER_PRIVATE_KEY;
 if (!deployerPrivateKey) {
-  throw new Error("Please set your DEPLOYER_PRIVATE_KEY in a .env file");
+  throw new Error("Please set your DEPLOYER_PRIVATE_KEY in the .env file");
 }
 
 const accounts = [`0x${deployerPrivateKey}`];
 
-const infuraApiKey: string | undefined = process.env.INFURA_API_KEY;
-if (!infuraApiKey) {
-  throw new Error("Please set your INFURA_API_KEY in a .env file");
+const alchemyApiKey: string | undefined = process.env.ALCHEMY_API_KEY;
+if (!alchemyApiKey) {
+  throw new Error("Please set your ALCHEMY_PRIVATE_KEY in the .env file");
 }
 
 function getChainConfig(network: keyof typeof chainIds): NetworkUserConfig {
-  const url: string = "https://" + network + ".infura.io/v3/" + infuraApiKey;
+  const url: string = "https://eth-" + network + ".alchemyapi.io/v2/" + alchemyApiKey;
   return {
     accounts,
     chainId: chainIds[network],
@@ -100,7 +100,7 @@ const config: HardhatUserConfig = {
       // https://hardhat.org/hardhat-network/#solidity-optimizer-support
       optimizer: {
         enabled: true,
-        runs: 200,
+        runs: 150,
       },
     },
   },

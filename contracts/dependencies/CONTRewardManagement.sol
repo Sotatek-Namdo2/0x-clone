@@ -206,7 +206,8 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getRewardAmountOf(address account) external view returns (uint256) {
-        require(isContOwner(account), "GET REWARD OF: NO CONT OWNER");
+        if (!isContOwner(account)) return 0;
+
         uint256 rewardCount = 0;
 
         ContEntity[] memory conts = _contsOfUser[account];
@@ -222,7 +223,6 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getRewardAmountOf(address account, uint256 _contIndex) external view returns (uint256) {
-        require(isContOwner(account), "GET REWARD OF: NO CONT OWNER");
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 numberOfConts = conts.length;
         require(_contIndex >= 0 && _contIndex < numberOfConts, "CONT: Cont index is improper");
@@ -232,7 +232,7 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getContsNames(address account) external view returns (string memory) {
-        require(isContOwner(account), "GET NAMES: NO CONT OWNER");
+        if (!isContOwner(account)) return "";
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         ContEntity memory _cont;
@@ -246,7 +246,7 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getContsCreationTime(address account) external view returns (string memory) {
-        require(isContOwner(account), "GET CREATIME: NO CONT OWNER");
+        if (!isContOwner(account)) return "";
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         ContEntity memory _cont;
@@ -261,7 +261,7 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getContsTypes(address account) external view returns (string memory) {
-        require(isContOwner(account), "GET CREATIME: NO CONT OWNER");
+        if (!isContOwner(account)) return "";
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         ContEntity memory _cont;
@@ -276,7 +276,7 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getContsInitialAPR(address account) external view returns (string memory) {
-        require(isContOwner(account), "GET CREATIME: NO CONT OWNER");
+        if (!isContOwner(account)) return "";
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         ContEntity memory _cont;
@@ -291,7 +291,8 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getContsCurrentAPR(address account) external view returns (string memory) {
-        require(isContOwner(account), "GET CREATIME: NO CONT OWNER");
+        if (!isContOwner(account)) return "";
+
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         ContEntity memory _cont;
@@ -306,7 +307,7 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getContsRewardAvailable(address account) external view returns (string memory) {
-        require(isContOwner(account), "GET REWARD: NO CONT OWNER");
+        if (!isContOwner(account)) return "";
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         uint256 currentTstamp = block.timestamp;
@@ -321,7 +322,7 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _getContsLastUpdateTime(address account) external view returns (string memory) {
-        require(isContOwner(account), "LAST CLAIM TIME: NO CONT OWNER");
+        if (!isContOwner(account)) return "";
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         ContEntity memory _cont;
