@@ -37,6 +37,12 @@ if (!deployerPrivateKey) {
   throw new Error("Please set your DEPLOYER_PRIVATE_KEY in the .env file");
 }
 
+const usdcToken: string | undefined = process.env.USDC_TOKEN_ADDRESS;
+const uniswapAddress: string | undefined = process.env.UNIV2ROUTER_ADDRESS;
+if (!usdcToken || !uniswapAddress) {
+  throw new Error("Please set your USDC_TOKEN_ADDRESS and UNIV2ROUTER_ADDRESS in the .env file");
+}
+
 const accounts = [`0x${deployerPrivateKey}`];
 
 const alchemyApiKey: string | undefined = process.env.ALCHEMY_API_KEY;

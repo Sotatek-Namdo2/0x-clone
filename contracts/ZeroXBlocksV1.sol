@@ -278,9 +278,10 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
             to != address(this)
         ) {
             require(balanceOf(to) + amount <= LAUNCH_BUY_LIMIT, "0xB LAUNCH: own exceeds limit");
-            // if (_lastBuyOnLaunch[to].isValue) {
-            //     require(block.timestamp - _lastBuyOnLaunch[to] >= 300, "0xB LAUNCH: timeout");
-            // }
+            _lastBuyOnLaunch[to];
+            if (_lastBuyOnLaunch[to] > 0) {
+                require(block.timestamp - _lastBuyOnLaunch[to] >= 300, "0xB LAUNCH: timeout");
+            }
         }
 
         _lastBuyOnLaunch[to] = block.timestamp;

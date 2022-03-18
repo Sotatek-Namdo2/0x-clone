@@ -34,8 +34,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const liquidityPoolFee = 20;
   const cashoutFee = 10;
   const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
-  const uniV2Router = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4";
-
+  const uniV2Router = process.env.UNIV2ROUTER_ADDRESS;
   const USDCToken = process.env.USDC_TOKEN_ADDRESS;
 
   await deploy("ZeroXBlocksV1", {
