@@ -15,7 +15,6 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     IJoeRouter02 public uniswapV2Router;
 
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
-    uint256 private constant LAUNCH_BUY_LIMIT = 100e18;
 
     uint256 public ownedContsLimit;
     uint256 private mintContLimit;
@@ -45,6 +44,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
     // ***** Anti-bot *****
     bool public antiBotEnabled;
+    uint256 public launchBuyLimit;
+    uint256 public launchBuyTimeout;
     mapping(address => uint256) public _lastBuyOnLaunch;
 
     // ***** Blacklist storage *****
@@ -130,14 +131,25 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         enableCashout = true;
 
         antiBotEnabled = true;
+        launchBuyLimit = 0;
+        launchBuyTimeout = 300;
     }
 
     // ***** WRITE functions for admin *****
+    function setLaunchBuyLimit(uint256 newLimit) external onlyOwner {
+        launchBuyLimit = newLimit;
+    }
+
+    function setLaunchBuyTimeout(uint256 newTimeout) external onlyOwner {
+        launchBuyTimeout = newTimeout;
+    }
+
     function setUSDCAddress(address newAddress) external onlyOwner {
         usdcToken = newAddress;
     }
 
     function setEnableAntiBot(bool _enable) external onlyOwner {
+        require(!_enable, "ANTI-BOT: do not turn on after switching off");
         antiBotEnabled = _enable;
     }
 
@@ -277,14 +289,14 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
             to != developmentFundPool &&
             to != address(this)
         ) {
-            require(balanceOf(to) + amount <= LAUNCH_BUY_LIMIT, "0xB LAUNCH: own exceeds limit");
+            require(balanceOf(to) + amount <= launchBuyLimit, "0xB LAUNCH: own exceeds limit");
             _lastBuyOnLaunch[to];
             if (_lastBuyOnLaunch[to] > 0) {
-                require(block.timestamp - _lastBuyOnLaunch[to] >= 300, "0xB LAUNCH: timeout");
+                require(block.timestamp - _lastBuyOnLaunch[to] >= launchBuyTimeout, "0xB LAUNCH: timeout");
             }
+            _lastBuyOnLaunch[to] = block.timestamp;
         }
 
-        _lastBuyOnLaunch[to] = block.timestamp;
         super._transfer(from, to, amount);
     }
 
