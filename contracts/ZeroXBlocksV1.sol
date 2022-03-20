@@ -62,6 +62,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     event ContsMinted(address sender);
     event RewardCashoutOne(address sender, uint256 index);
     event RewardCashoutAll(address sender);
+    event AddLiquidity(address sender, uint256 tokens);
 
     // ***** Constructor *****
     function initialize(
@@ -339,7 +340,11 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 tokens
     ) private {
         _approve(sender, address(uniswapV2Router), tokens);
-        uniswapV2Router.addLiquidityAVAX(address(this), tokens, 0, 0, targetWallet, (block.timestamp + 120) * 1000);
+        try uniswapV2Router.addLiquidityAVAX(address(this), tokens, 0, 0, targetWallet, block.timestamp + 120) {
+            emit AddLiquidity(sender, tokens);
+        } catch {
+            super._transfer(sender, liquidityPool, tokens);
+        }
     }
 
     // ***** WRITE functions for public *****
@@ -414,7 +419,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            uniswapV2Router.addLiquidityAVAX(address(this), feeAmount, 0, 0, liquidityPool, block.timestamp + 360);
+            provideLiquidity(sender, liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
