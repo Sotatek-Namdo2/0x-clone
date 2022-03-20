@@ -7,7 +7,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/finance/PaymentSplitterUpgradeable.sol";
 import "./dependencies/CONTRewardManagement.sol";
 import "./interfaces/IJoeRouter02.sol";
-import "./interfaces/IPinkAntiBot.sol";
 import "./interfaces/IJoeFactory.sol";
 
 contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, PaymentSplitterUpgradeable {
@@ -44,8 +43,10 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     address public usdcToken;
 
     // ***** Anti-bot *****
-    IPinkAntiBot public pinkAntiBot;
     bool public antiBotEnabled;
+    uint256 public launchBuyLimit;
+    uint256 public launchBuyTimeout;
+    mapping(address => uint256) public _lastBuyOnLaunch;
 
     // ***** Blacklist storage *****
     mapping(address => bool) public _isBlacklisted;
@@ -54,13 +55,14 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     mapping(address => bool) public automatedMarketMakerPairs;
 
     // ***** Enable Cashout *****
-    bool public enableCashout = true;
-    bool public enableMintConts = true;
+    bool public enableCashout;
+    bool public enableMintConts;
 
     // ***** Events *****
     event ContsMinted(address sender);
     event RewardCashoutOne(address sender, uint256 index);
     event RewardCashoutAll(address sender);
+    event AddLiquidity(address sender, uint256 tokens);
 
     // ***** Constructor *****
     function initialize(
@@ -70,7 +72,6 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256[] memory balances,
         uint256[] memory fees,
         address uniV2Router,
-        address pinkAntiBot_,
         address usdcAddr
     ) public initializer {
         require(addresses.length > 0 && balances.length > 0, "ADDR & BALANCE ERROR");
@@ -86,6 +87,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
                 addresses[4] != address(0),
             "POOL ZERO FOUND"
         );
+        antiBotEnabled = false;
 
         developmentFundPool = addresses[1];
         liquidityPool = addresses[2];
@@ -126,19 +128,29 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         mintContLimit = 10;
         enableAutoSwapTreasury = true;
         enableAutoSwapDevFund = true;
+        enableMintConts = true;
+        enableCashout = true;
 
-        pinkAntiBot = IPinkAntiBot(pinkAntiBot_);
-        pinkAntiBot.setTokenOwner(msg.sender);
-        antiBotEnabled = false;
+        antiBotEnabled = true;
+        launchBuyLimit = 0;
+        launchBuyTimeout = 300;
     }
 
     // ***** WRITE functions for admin *****
-    function changeAntiBotAddress(address newAddress) external onlyOwner {
-        require(newAddress != address(0), "NEW ANTI-BOT: zero address");
-        pinkAntiBot = IPinkAntiBot(newAddress);
+    function setLaunchBuyLimit(uint256 newLimit) external onlyOwner {
+        launchBuyLimit = newLimit;
+    }
+
+    function setLaunchBuyTimeout(uint256 newTimeout) external onlyOwner {
+        launchBuyTimeout = newTimeout;
+    }
+
+    function setUSDCAddress(address newAddress) external onlyOwner {
+        usdcToken = newAddress;
     }
 
     function setEnableAntiBot(bool _enable) external onlyOwner {
+        require(!_enable, "ANTI-BOT: do not turn on after switching off");
         antiBotEnabled = _enable;
     }
 
@@ -268,9 +280,24 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 amount
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
-        if (antiBotEnabled) {
-            pinkAntiBot.onPreTransferCheck(from, to, amount);
+
+        if (
+            antiBotEnabled &&
+            to != uniswapV2Pair &&
+            to != rewardsPool &&
+            to != treasuryPool &&
+            to != liquidityPool &&
+            to != developmentFundPool &&
+            to != address(this)
+        ) {
+            require(balanceOf(to) + amount <= launchBuyLimit, "0xB LAUNCH: own exceeds limit");
+            _lastBuyOnLaunch[to];
+            if (_lastBuyOnLaunch[to] > 0) {
+                require(block.timestamp - _lastBuyOnLaunch[to] >= launchBuyTimeout, "0xB LAUNCH: timeout");
+            }
+            _lastBuyOnLaunch[to] = block.timestamp;
         }
+
         super._transfer(from, to, amount);
     }
 
@@ -307,9 +334,17 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         );
     }
 
-    function provideLiquidity(address targetWallet, uint256 tokens) private {
-        _approve(address(this), address(uniswapV2Router), tokens);
-        uniswapV2Router.addLiquidityAVAX(address(this), tokens, 0, 0, targetWallet, block.timestamp + 360);
+    function provideLiquidity(
+        address sender,
+        address targetWallet,
+        uint256 tokens
+    ) private {
+        _approve(sender, address(uniswapV2Router), tokens);
+        try uniswapV2Router.addLiquidityAVAX(address(this), tokens, 0, 0, targetWallet, block.timestamp + 120) {
+            emit AddLiquidity(sender, tokens);
+        } catch {
+            super._transfer(sender, liquidityPool, tokens);
+        }
     }
 
     // ***** WRITE functions for public *****
@@ -357,8 +392,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
         // LIQUIDITY
         uint256 liquidityTokens = (contsPrice * liquidityPoolFee) / 100;
-        _approve(address(this), address(uniswapV2Router), liquidityTokens);
-        provideLiquidity(liquidityPool, liquidityTokens);
+        provideLiquidity(sender, liquidityPool, liquidityTokens);
 
         // EXTRA
         uint256 extraT = contsPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
@@ -385,7 +419,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            uniswapV2Router.addLiquidityAVAX(address(this), feeAmount, 0, 0, liquidityPool, block.timestamp + 360);
+            provideLiquidity(sender, liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
@@ -406,8 +440,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            _approve(address(this), address(uniswapV2Router), feeAmount);
-            provideLiquidity(liquidityPool, feeAmount);
+            provideLiquidity(sender, liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
@@ -417,13 +450,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
     }
 
     // ***** READ function for public *****
-    function getRewardAmountOf(address account) external view returns (uint256) {
-        return _crm._getRewardAmountOf(account);
-    }
-
     function getRewardAmount() external view returns (uint256) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getRewardAmountOf(_msgSender());
     }
 
@@ -441,43 +469,36 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
 
     function getContsNames() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsNames(_msgSender());
     }
 
     function getContsCurrentAPR() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsCurrentAPR(_msgSender());
     }
 
     function getContsInitialAPR() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsInitialAPR(_msgSender());
     }
 
     function getContsCreationTime() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsCreationTime(_msgSender());
     }
 
     function getContsTypes() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsTypes(_msgSender());
     }
 
     function getContsRewards() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsRewardAvailable(_msgSender());
     }
 
     function getContsLastCashoutTime() external view returns (string memory) {
         require(_msgSender() != address(0), "SENDER IS 0");
-        require(_crm._isContOwner(_msgSender()), "NO CONT OWNER");
         return _crm._getContsLastUpdateTime(_msgSender());
     }
 
