@@ -12,8 +12,6 @@ The smart contract code is divided into 2 parts:
 - `contracts/dependencies/NODERewardManagement.sol`: Take care of nodes storage and reward
   calculation.
 
-- `contracts/USDC.sol`: A mock USDC ERC20-token. Use for testnet only.
-
 ### Deployments (typescript)
 
 - `deployments/migrations/001_deploy_node_management.ts`
