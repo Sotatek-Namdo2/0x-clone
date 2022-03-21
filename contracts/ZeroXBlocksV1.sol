@@ -121,12 +121,12 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         for (uint256 i = 0; i < addresses.length; i++) {
             _mint(addresses[i], balances[i] * (10**18));
         }
-        require(totalSupply() == 1012345e18, "TTL SUPPLY DIFF 1 MIL");
+        require(totalSupply() == 1e24, "TTL SUPPLY DIFF 1 MIL");
 
         usdcToken = usdcAddr;
         ownedContsLimit = 100;
         mintContLimit = 10;
-        enableAutoSwapTreasury = true;
+        enableAutoSwapTreasury = false;
         enableAutoSwapDevFund = true;
         enableMintConts = true;
         enableCashout = true;
