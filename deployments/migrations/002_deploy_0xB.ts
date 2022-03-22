@@ -10,7 +10,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const liquidityPool = process.env.LIQUIDITY_POOL_WALLET || deployer;
   const treasury = process.env.TREASURY_WALLET || deployer;
   const rewards = process.env.REWARDS_WALLET || deployer;
+  const reserveLiquidityPool = process.env.RESERVE_LIQUIDITY_WALLET || deployer;
+  const coFounder = ["0x14BC67Cb9c42eA4472227441849CB7891c1775BE", "0xF664518d926e252fa1a521fe02a89BF2eaBa7b4A"];
   const chainId = await getChainId();
+  const owner = process.env.ZEROXBLOCKS_OWNER || deployer;
 
   if (chainId === chainIds.avax.toString()) {
     return;
@@ -24,20 +27,20 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     liquidityPool,
     treasury,
     rewards,
-    "0x000000000000000000000000000000000000dead",
+    reserveLiquidityPool,
+    coFounder[0],
+    coFounder[1],
   ];
 
-  const balances = [800000, 50000, 50000, 50000, 50000, 12345];
-  const futureFee = 10;
+  const balances = [0, 100_000, 0, 0, 700_000, 100_000, 50_000, 50_000];
+  const devFundFee = 5;
   const treasuryFee = 20;
-  const rewardsFee = 50;
+  const rewardsFee = 55;
   const liquidityPoolFee = 20;
   const cashoutFee = 10;
-  const fees = [futureFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
-  const uniV2Router = "0x7e2528476b14507f003ae9d123334977f5ad7b14"; // TraderJoe router
-
-  const USDCToken = "0x5b8470fbc6b31038aa07abd3010acffca6e36611"; // USDC on Rinkeby
-  const pinkToken = "0x000000000000000000000000000000000000dead";
+  const fees = [devFundFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
+  const uniV2Router = process.env.UNIV2ROUTER_ADDRESS;
+  const USDCToken = process.env.USDC_TOKEN_ADDRESS;
 
   await deploy("ZeroXBlocksV1", {
     from: deployer,
@@ -48,7 +51,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       execute: {
         init: {
           methodName: "initialize",
-          args: [payees, shares, addresses, balances, fees, uniV2Router, pinkToken, USDCToken],
+          args: [payees, shares, addresses, balances, fees, uniV2Router, USDCToken],
         },
       },
     },
@@ -58,6 +61,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const ZeroXBlocksV1 = await deployments.get("ZeroXBlocksV1");
   await execute("CONTRewardManagement", { from: deployer, log: true }, "setToken", ZeroXBlocksV1.address);
   await execute("ZeroXBlocksV1", { from: deployer, log: true }, "setContManagement", CONTRewardManagement.address);
+  await execute("CONTRewardManagement", { from: deployer, log: true }, "setAdmin", owner);
+  await execute("ZeroXBlocksV1", { from: deployer, log: true }, "transferOwnership", owner);
 };
 
 func.tags = ["ZeroXBlocks"];
