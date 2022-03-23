@@ -12,7 +12,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const rewards = process.env.REWARDS_WALLET || deployer;
   const reserveRewards = process.env.RESERVE_REWARDS_WALLET || rewards;
   const reserveLiquidityPool = process.env.RESERVE_LIQUIDITY_WALLET || deployer;
-  const coFounder = ["0x14BC67Cb9c42eA4472227441849CB7891c1775BE", "0xF664518d926e252fa1a521fe02a89BF2eaBa7b4A"];
+  const initialHolders = [
+    "0x14BC67Cb9c42eA4472227441849CB7891c1775BE",
+    "0xF664518d926e252fa1a521fe02a89BF2eaBa7b4A",
+    "0xee16fb49501790c42da96dfe54b2e18f3bCfcfB2",
+  ];
   const chainId = await getChainId();
   const owner = process.env.ZEROXBLOCKS_OWNER || deployer;
 
@@ -26,11 +30,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     rewards,
     reserveRewards,
     reserveLiquidityPool,
-    coFounder[0],
-    coFounder[1],
+    initialHolders[0],
+    initialHolders[1],
+    initialHolders[2],
   ];
 
-  const balances = [0, 100_000, 0, 0, 1000, 699_000, 100_000, 50_000, 50_000];
+  const balances = [0, 98_800, 0, 0, 1000, 699_000, 100_000, 50_000, 50_000, 1_200];
   const devFundFee = 5;
   const treasuryFee = 20;
   const rewardsFee = 55;

@@ -96,7 +96,7 @@ const config: HardhatUserConfig = {
     deployments: "./deployments/artifacts",
   },
   solidity: {
-    version: "0.7.6",
+    version: "0.8.7",
     settings: {
       metadata: {
         // Not including the metadata hash
