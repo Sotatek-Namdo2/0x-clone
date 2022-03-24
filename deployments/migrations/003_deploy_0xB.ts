@@ -12,11 +12,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const rewards = process.env.REWARDS_WALLET || deployer;
   const reserveRewards = process.env.RESERVE_REWARDS_WALLET || rewards;
   const reserveLiquidityPool = process.env.RESERVE_LIQUIDITY_WALLET || deployer;
-  const initialHolders = [
-    "0x14BC67Cb9c42eA4472227441849CB7891c1775BE",
-    "0xF664518d926e252fa1a521fe02a89BF2eaBa7b4A",
-    "0xee16fb49501790c42da96dfe54b2e18f3bCfcfB2",
-  ];
+  const initialHolders = [deployer, deployer, deployer];
   const chainId = await getChainId();
   const owner = process.env.ZEROXBLOCKS_OWNER || deployer;
 
@@ -42,10 +38,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const liquidityPoolFee = 20;
   const cashoutFee = 10;
   const fees = [devFundFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
-  const uniV2Router = process.env.UNIV2ROUTER_ADDRESS;
   const USDCToken = process.env.USDC_TOKEN_ADDRESS;
 
-  await deploy("ZeroXBlocksV1", {
+  await deploy("ZeroXBlock", {
     from: deployer,
     log: true,
     proxy: {
@@ -54,19 +49,20 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       execute: {
         init: {
           methodName: "initialize",
-          args: [payees, shares, addresses, balances, fees, uniV2Router, USDCToken],
+          args: [payees, shares, addresses, balances, fees, USDCToken],
         },
       },
     },
   });
 
   const CONTRewardManagement = await deployments.get("CONTRewardManagement");
-  const ZeroXBlocksV1 = await deployments.get("ZeroXBlocksV1");
-  await execute("CONTRewardManagement", { from: deployer, log: true }, "setToken", ZeroXBlocksV1.address);
-  await execute("ZeroXBlocksV1", { from: deployer, log: true }, "setContManagement", CONTRewardManagement.address);
-  // await execute("CONTRewardManagement", { from: deployer, log: true }, "setAdmin", owner);
-  // await execute("ZeroXBlocksV1", { from: deployer, log: true }, "transferOwnership", owner);
+  const LiquidityRouter = await deployments.get("LiquidityRouter");
+  const ZeroXBlock = await deployments.get("ZeroXBlock");
+  await execute("CONTRewardManagement", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
+  await execute("LiquidityRouter", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
+  await execute("ZeroXBlock", { from: deployer, log: true }, "setContManagement", CONTRewardManagement.address);
+  await execute("ZeroXBlock", { from: deployer, log: true }, "setLiquidityRouter", LiquidityRouter.address);
 };
 
-func.tags = ["ZeroXBlocks"];
+func.tags = ["ZeroXBlock"];
 export default func;

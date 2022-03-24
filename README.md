@@ -6,15 +6,15 @@
 
 The smart contract code is divided into 2 parts:
 
-- `contracts/ZeroXBlocksV1.sol`: Main functionalities, contains all ABI methods to interact.
+- `contracts/ZeroXBlock.sol`: Main functionalities, contains all ABI methods to interact.
   Most non-heavy features are written here (transferring, toggling auto-swap, blacklisting, ...)
 
-- `contracts/dependencies/NODERewardManagement.sol`: Take care of nodes storage and reward
+- `contracts/dependencies/CONTRewardManagement.sol`: Take care of conts storage and reward
   calculation.
 
 ### Deployments (typescript)
 
-- `deployments/migrations/001_deploy_node_management.ts`
+- `deployments/migrations/001_deploy_cont_management.ts`
 - `deployments/migrations/002_deploy_0xB.ts`
 
 ### Unit test
