@@ -77,7 +77,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         require(addresses.length > 0 && balances.length > 0, "ADDR & BALANCE ERROR");
 
         __Ownable_init();
-        __ERC20_init("0xBlocks v1", "0XB");
+        __ERC20_init("0xBlock", "0xB");
         __PaymentSplitter_init(payees, shares);
 
         require(
@@ -284,6 +284,7 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         if (
             antiBotEnabled &&
             to != uniswapV2Pair &&
+            to != address(uniswapV2Router) &&
             to != rewardsPool &&
             to != treasuryPool &&
             to != liquidityPool &&

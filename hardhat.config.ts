@@ -1,4 +1,5 @@
 import "@nomiclabs/hardhat-waffle";
+import "@nomiclabs/hardhat-etherscan";
 import "@typechain/hardhat";
 import { config as dotenvConfig } from "dotenv";
 import { readdirSync } from "fs";
@@ -116,6 +117,9 @@ const config: HardhatUserConfig = {
   },
   namedAccounts: {
     deployer: 0,
+  },
+  etherscan: {
+    apiKey: "YCE497C12VFW3JYEHID9EC6M1D49CWQ7HW",
   },
 };
 

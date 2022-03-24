@@ -9,10 +9,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const { deployer } = await getNamedAccounts();
   const chainId = await getChainId();
 
-  if (chainId === chainIds.avax.toString()) {
-    return;
-  }
-
   const contPrices = [
     utils.parseEther("5"), // Square
     utils.parseEther("15"), // Cube
