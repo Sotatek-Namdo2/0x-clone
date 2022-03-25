@@ -232,6 +232,15 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         _liqRouter.swapExact0xBForToken(tokenAddr, receiver, amountIn);
     }
 
+    function swap0xbExToken(
+        address tokenAddr,
+        address receiver,
+        uint256 amountOut
+    ) private {
+        _approve(address(this), _liqRouter.routerAddress(), 2**256 - 1);
+        _liqRouter.swap0xBForExactToken(tokenAddr, receiver, amountOut);
+    }
+
     function provideLiquidity(address sender, uint256 tokens) private {
         super._transfer(sender, liquidityPool, tokens);
     }
@@ -240,6 +249,11 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     function swapExact0xBForToken(address tokenAddr, uint256 amountIn) public {
         _transfer(_msgSender(), address(this), amountIn);
         swapEx0xbToken(tokenAddr, _msgSender(), amountIn);
+    }
+
+    function swap0xBForExactToken(address tokenAddr, uint256 amountOut) public {
+        _transfer(_msgSender(), address(this), amountOut);
+        swapEx0xbToken(tokenAddr, _msgSender(), amountOut);
     }
 
     function mintConts(string[] memory names, ContType _cType) external {
@@ -344,12 +358,20 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     }
 
     // ***** READ function for public *****
-    function getOutputAmount(address targetToken, uint256 inputAmount) external view returns (uint256[] memory) {
-        return _liqRouter.getOutputAmount(targetToken, inputAmount);
+    function getOutputAmount(
+        bool is0xBOut,
+        address targetToken,
+        uint256 inputAmount
+    ) external view returns (uint256[] memory) {
+        return _liqRouter.getOutputAmount(is0xBOut, targetToken, inputAmount);
     }
 
-    function getInputAmount(address inputToken, uint256 outputAmount) external view returns (uint256[] memory) {
-        return _liqRouter.getInputAmount(inputToken, outputAmount);
+    function getInputAmount(
+        bool is0xBOut,
+        address targetToken,
+        uint256 outputAmount
+    ) external view returns (uint256[] memory) {
+        return _liqRouter.getInputAmount(is0xBOut, targetToken, outputAmount);
     }
 
     function getRewardAmount() external view returns (uint256) {

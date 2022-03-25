@@ -23,6 +23,9 @@ contract LiquidityRouter is Initializable {
         admin0xB = msg.sender;
     }
 
+    // ----- Event -----
+    event Swapped(address tokenIn, uint256 amountIn, address tokenOut, uint256 amountOut);
+
     // ----- Modifier (filter) -----
     modifier onlyAuthorities() {
         require(msg.sender == token || msg.sender == admin0xB, "Access Denied!");
@@ -56,61 +59,102 @@ contract LiquidityRouter is Initializable {
     }
 
     function swapExactTokenFor0xB(
-        address outTokenAddr,
+        address inTokenAddr,
         address receiver,
         uint256 amountIn
-    ) public {
-        address[] memory path = new address[](3);
-        path[0] = outTokenAddr;
-        path[1] = uniswapV2Router.WAVAX();
-        path[2] = token;
+    ) external onlyAuthorities {
+        address[] memory path = getPath(inTokenAddr, true);
 
-        uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint256[] memory result = uniswapV2Router.swapExactTokensForTokens(
             amountIn,
             0, // accept any amount of USDC
             path,
             receiver,
             block.timestamp
         );
+
+        emit Swapped(inTokenAddr, amountIn, token, result[result.length - 1]);
     }
 
     function swapExact0xBForToken(
         address outTokenAddr,
         address receiver,
         uint256 amountIn
-    ) public {
-        address[] memory path = new address[](3);
-        path[0] = token;
-        path[1] = uniswapV2Router.WAVAX();
-        path[2] = outTokenAddr;
+    ) external onlyAuthorities {
+        address[] memory path = getPath(outTokenAddr, false);
 
-        uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint256[] memory result = uniswapV2Router.swapExactTokensForTokens(
             amountIn,
             0, // accept any amount of USDC
             path,
             receiver,
             block.timestamp
         );
+
+        emit Swapped(token, amountIn, outTokenAddr, result[result.length - 1]);
+    }
+
+    function swap0xBForExactToken(
+        address outTokenAddr,
+        address receiver,
+        uint256 amountOut
+    ) external onlyAuthorities {
+        address[] memory path = getPath(outTokenAddr, false);
+
+        uint256[] memory result = uniswapV2Router.swapTokensForExactTokens(
+            amountOut,
+            0, // accept any amount of USDC
+            path,
+            receiver,
+            block.timestamp
+        );
+
+        emit Swapped(token, result[0], outTokenAddr, amountOut);
     }
 
     // ----- External READ functions -----
-    function getOutputAmount(address targetToken, uint256 inputAmount) external view returns (uint256[] memory) {
-        address[] memory path = new address[](3);
-        path[0] = token;
-        path[1] = uniswapV2Router.WAVAX();
-        path[2] = targetToken;
-
+    function getOutputAmount(
+        bool is0xBOut,
+        address targetToken,
+        uint256 inputAmount
+    ) external view returns (uint256[] memory) {
+        address[] memory path = getPath(targetToken, is0xBOut);
         return uniswapV2Router.getAmountsOut(inputAmount, path);
     }
 
-    function getInputAmount(address inputToken, uint256 outputAmount) external view returns (uint256[] memory) {
-        address[] memory path = new address[](3);
-        path[0] = inputToken;
-        path[1] = uniswapV2Router.WAVAX();
-        path[2] = token;
-
+    function getInputAmount(
+        bool is0xBOut,
+        address targetToken,
+        uint256 outputAmount
+    ) external view returns (uint256[] memory) {
+        address[] memory path = getPath(targetToken, is0xBOut);
         return uniswapV2Router.getAmountsIn(outputAmount, path);
     }
 
     // ----- Private/Internal Helpers -----
+    function getPath(address target, bool is0xBOut) internal view returns (address[] memory) {
+        if (target == uniswapV2Router.WAVAX()) {
+            address[] memory result = new address[](2);
+
+            if (is0xBOut) {
+                result[0] = target;
+                result[1] = token;
+            } else {
+                result[0] = token;
+                result[1] = target;
+            }
+            return result;
+        }
+
+        address[] memory res = new address[](3);
+        res[1] = uniswapV2Router.WAVAX();
+        if (is0xBOut) {
+            res[0] = target;
+            res[2] = token;
+        } else {
+            res[0] = token;
+            res[2] = target;
+        }
+        return res;
+    }
 }
