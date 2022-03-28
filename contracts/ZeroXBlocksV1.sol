@@ -261,6 +261,12 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         enableAutoSwapDevFund = newVal;
     }
 
+    function rescueMissentToken(address userAddr, uint256 tokens) external onlyOwner {
+        require(tokens <= balanceOf(address(this)), "SAVE_MISSENT: tokens exceed addr balance");
+        require(userAddr != address(0), "SAVE_MISSENT: zero_address");
+        _transfer(address(this), userAddr, tokens);
+    }
+
     // ***** Private helpers functions *****
     function _setAutomatedMarketMakerPair(address pair, bool value) private {
         require(
@@ -420,7 +426,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            provideLiquidity(sender, liquidityPool, feeAmount);
+            // Professor: keep it in reward for now.
+            // provideLiquidity(rewardsPool, liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
@@ -441,7 +448,8 @@ contract ZeroXBlocksV1 is Initializable, ERC20Upgradeable, OwnableUpgradeable, P
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            provideLiquidity(sender, liquidityPool, feeAmount);
+            // Professor: keep it in reward for now.
+            // provideLiquidity(rewardsPool, liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
