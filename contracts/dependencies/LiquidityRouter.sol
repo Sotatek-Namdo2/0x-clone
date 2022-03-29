@@ -32,6 +32,25 @@ contract LiquidityRouter is Initializable {
         _;
     }
 
+    // ----- External READ functions -----
+    function getOutputAmount(
+        bool is0xBOut,
+        address targetToken,
+        uint256 inputAmount
+    ) external view returns (uint256[] memory) {
+        address[] memory path = getPath(targetToken, is0xBOut);
+        return uniswapV2Router.getAmountsOut(inputAmount, path);
+    }
+
+    function getInputAmount(
+        bool is0xBOut,
+        address targetToken,
+        uint256 outputAmount
+    ) external view returns (uint256[] memory) {
+        address[] memory path = getPath(targetToken, is0xBOut);
+        return uniswapV2Router.getAmountsIn(outputAmount, path);
+    }
+
     // ----- External WRITE functions -----
     function setToken(address _token) external onlyAuthorities {
         require(_token != address(0), "NEW_TOKEN: zero addr");
@@ -82,53 +101,17 @@ contract LiquidityRouter is Initializable {
         uint256 amountIn
     ) external onlyAuthorities {
         address[] memory path = getPath(outTokenAddr, false);
+        uint256[] memory amountOut = this.getOutputAmount(false, outTokenAddr, amountIn);
 
-        uint256[] memory result = uniswapV2Router.swapExactTokensForTokens(
+        uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
             amountIn,
-            0, // accept any amount of USDC
+            0, // accept any amount
             path,
             receiver,
             block.timestamp
         );
 
-        emit Swapped(token, amountIn, outTokenAddr, result[result.length - 1]);
-    }
-
-    function swap0xBForExactToken(
-        address outTokenAddr,
-        address receiver,
-        uint256 amountOut
-    ) external onlyAuthorities {
-        address[] memory path = getPath(outTokenAddr, false);
-
-        uint256[] memory result = uniswapV2Router.swapTokensForExactTokens(
-            amountOut,
-            0, // accept any amount of USDC
-            path,
-            receiver,
-            block.timestamp
-        );
-
-        emit Swapped(token, result[0], outTokenAddr, amountOut);
-    }
-
-    // ----- External READ functions -----
-    function getOutputAmount(
-        bool is0xBOut,
-        address targetToken,
-        uint256 inputAmount
-    ) external view returns (uint256[] memory) {
-        address[] memory path = getPath(targetToken, is0xBOut);
-        return uniswapV2Router.getAmountsOut(inputAmount, path);
-    }
-
-    function getInputAmount(
-        bool is0xBOut,
-        address targetToken,
-        uint256 outputAmount
-    ) external view returns (uint256[] memory) {
-        address[] memory path = getPath(targetToken, is0xBOut);
-        return uniswapV2Router.getAmountsIn(outputAmount, path);
+        emit Swapped(token, amountIn, outTokenAddr, amountOut[amountOut.length - 1]);
     }
 
     // ----- Private/Internal Helpers -----
