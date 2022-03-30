@@ -266,6 +266,16 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         _liqRouter.swapExactTokenFor0xB(receiver, tokenAddr, amountIn, amountOutMin, deadline);
     }
 
+    function swapTokenEx0xb(
+        address receiver,
+        address tokenAddr,
+        uint256 amountOut,
+        uint256 amountInMax,
+        uint256 deadline
+    ) private {
+        _liqRouter.swapTokenForExact0xB(receiver, tokenAddr, amountOut, amountInMax, deadline);
+    }
+
     function provideLiquidity(address sender, uint256 tokens) private {
         super._transfer(sender, liquidityPool, tokens);
     }
@@ -315,6 +325,23 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(targetToken.allowance(sender, address(this)) >= amountIn, "SWAP: need to approve first");
         targetToken.transferFrom(sender, address(_liqRouter), amountIn);
         swapExToken0xb(sender, tokenAddr, amountIn, amountOutMin, deadline);
+    }
+
+    function swapTokenForExact0xB(
+        address tokenAddr,
+        uint256 amountOut,
+        uint256 slippageTolerance,
+        uint256 deadline
+    ) public {
+        address sender = msg.sender;
+        uint256[] memory amountInCurrent = _liqRouter.getInputAmount(true, tokenAddr, amountOut);
+        uint256 amountInMax = (amountInCurrent[0] * (HUNDRED_PERCENT + slippageTolerance)) / HUNDRED_PERCENT;
+        IERC20 targetToken = IERC20(tokenAddr);
+        require(targetToken.balanceOf(sender) >= amountInMax, "SWAP: insufficient balance");
+        require(targetToken.allowance(sender, address(this)) >= amountInMax, "SWAP: insufficient balance");
+
+        targetToken.transferFrom(sender, address(_liqRouter), amountInMax);
+        swapTokenEx0xb(sender, tokenAddr, amountOut, amountInMax, deadline);
     }
 
     function mintConts(string[] memory names, ContType _cType) external {

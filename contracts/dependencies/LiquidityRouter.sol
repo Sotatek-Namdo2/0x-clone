@@ -78,29 +78,6 @@ contract LiquidityRouter is Initializable {
         uniswapV2Pair = _uniswapV2Pair;
     }
 
-    function swapExactTokenFor0xB(
-        address receiver,
-        address inTokenAddr,
-        uint256 amountIn,
-        uint256 amountOutMin,
-        uint256 deadline
-    ) external onlyAuthorities {
-        if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountIn) {
-            approveTokenAccess(inTokenAddr);
-        }
-        address[] memory path = getPath(inTokenAddr, true);
-
-        uint256[] memory result = uniswapV2Router.swapExactTokensForTokens(
-            amountIn,
-            amountOutMin,
-            path,
-            receiver,
-            deadline
-        );
-
-        emit Swapped(inTokenAddr, amountIn, token, result[result.length - 1]);
-    }
-
     function swapExact0xBForToken(
         address receiver,
         address outTokenAddr,
@@ -143,6 +120,57 @@ contract LiquidityRouter is Initializable {
         IERC20(token).transfer(receiver, amountInMax - amountInActual);
 
         emit Swapped(token, amountInActual, outTokenAddr, amountOut);
+    }
+
+    function swapExactTokenFor0xB(
+        address receiver,
+        address inTokenAddr,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline
+    ) external onlyAuthorities {
+        if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountIn) {
+            approveTokenAccess(inTokenAddr);
+        }
+        address[] memory path = getPath(inTokenAddr, true);
+
+        uint256[] memory result = uniswapV2Router.swapExactTokensForTokens(
+            amountIn,
+            amountOutMin,
+            path,
+            receiver,
+            deadline
+        );
+
+        emit Swapped(inTokenAddr, amountIn, token, result[result.length - 1]);
+    }
+
+    function swapTokenForExact0xB(
+        address receiver,
+        address inTokenAddr,
+        uint256 amountOut,
+        uint256 amountInMax,
+        uint256 deadline
+    ) external onlyAuthorities {
+        if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountInMax) {
+            approveTokenAccess(inTokenAddr);
+        }
+
+        address[] memory path = getPath(inTokenAddr, true);
+
+        uint256[] memory result = uniswapV2Router.swapTokensForExactTokens(
+            amountOut,
+            amountInMax,
+            path,
+            receiver,
+            deadline
+        );
+
+        uint256 amountInActual = result[0];
+        // return residual tokens to sender
+        IERC20(inTokenAddr).transfer(receiver, amountInMax - amountInActual);
+
+        emit Swapped(inTokenAddr, amountInActual, token, amountOut);
     }
 
     // ----- Private/Internal Helpers -----
