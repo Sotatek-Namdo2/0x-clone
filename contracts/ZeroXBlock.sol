@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/finance/PaymentSplitterUpgradeable.sol";
+import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "./dependencies/CONTRewardManagement.sol";
 import "./dependencies/LiquidityRouter.sol";
 
@@ -230,12 +231,29 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     }
 
     function swapEx0xbToken(
-        address tokenAddr,
         address receiver,
-        uint256 amountIn
+        address tokenAddr,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline
     ) private {
-        _approve(address(_liqRouter), _liqRouter.routerAddress(), amountIn);
-        _liqRouter.swapExact0xBForToken(tokenAddr, receiver, amountIn);
+        if (this.allowance(address(_liqRouter), _liqRouter.routerAddress()) < amountIn) {
+            _approve(address(_liqRouter), _liqRouter.routerAddress(), uint256(2**256 - 1));
+        }
+        _liqRouter.swapExact0xBForToken(receiver, tokenAddr, amountIn, amountOutMin, deadline);
+    }
+
+    function swap0xbExToken(
+        address receiver,
+        address tokenAddr,
+        uint256 amountOut,
+        uint256 amountInMax,
+        uint256 deadline
+    ) private {
+        if (this.allowance(address(_liqRouter), _liqRouter.routerAddress()) < amountInMax) {
+            _approve(address(_liqRouter), _liqRouter.routerAddress(), uint256(2**256 - 1));
+        }
+        _liqRouter.swap0xBForExactToken(receiver, tokenAddr, amountOut, amountInMax, deadline);
     }
 
     function provideLiquidity(address sender, uint256 tokens) private {
@@ -243,19 +261,33 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     }
 
     // ***** WRITE functions for public *****
-    function swapExact0xBForToken(address tokenAddr, uint256 amountIn) public {
+    function swapExact0xBForToken(
+        address tokenAddr,
+        uint256 amountIn,
+        uint256 slippageTolerance,
+        uint256 deadline
+    ) public {
         address sender = msg.sender;
+        uint256[] memory amountOutCurrent = _liqRouter.getOutputAmount(false, tokenAddr, amountIn);
+        uint256 amountOutMin = amountOutCurrent[amountOutCurrent.length - 1];
+        amountOutMin = (amountOutMin * (HUNDRED_PERCENT - slippageTolerance)) / HUNDRED_PERCENT;
         require(balanceOf(sender) >= amountIn, "SWAP: insufficient balance");
         _transfer(sender, address(_liqRouter), amountIn);
-        swapEx0xbToken(tokenAddr, sender, amountIn);
+        swapEx0xbToken(sender, tokenAddr, amountIn, amountOutMin, deadline);
     }
 
-    function swap0xBForExactToken(address tokenAddr, uint256 amountOut) public {
+    function swap0xBForExactToken(
+        address tokenAddr,
+        uint256 amountOut,
+        uint256 slippageTolerance,
+        uint256 deadline
+    ) public {
         address sender = msg.sender;
-        uint256 amountIn = _liqRouter.getInputAmount(false, tokenAddr, amountOut)[0];
-        require(balanceOf(sender) >= amountIn, "SWAP: insufficient balance");
-        _transfer(sender, address(_liqRouter), amountIn);
-        swapEx0xbToken(tokenAddr, sender, amountIn);
+        uint256[] memory amountInCurrent = _liqRouter.getInputAmount(false, tokenAddr, amountOut);
+        uint256 amountInMax = (amountInCurrent[0] * (HUNDRED_PERCENT + slippageTolerance)) / HUNDRED_PERCENT;
+        require(balanceOf(sender) >= amountInMax, "SWAP: insufficient balance");
+        _transfer(sender, address(_liqRouter), amountInMax);
+        swap0xbExToken(sender, tokenAddr, amountOut, amountInMax, deadline);
     }
 
     function mintConts(string[] memory names, ContType _cType) external {
@@ -282,7 +314,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 developmentFundTokens = (contsPrice * developmentFee) / 100;
         if (enableAutoSwapDevFund) {
             super._transfer(sender, address(_liqRouter), developmentFundTokens);
-            swapEx0xbToken(usdcToken, developmentFundPool, developmentFundTokens);
+            swapEx0xbToken(developmentFundPool, usdcToken, developmentFundTokens, 0, block.timestamp);
         } else {
             super._transfer(sender, developmentFundPool, developmentFundTokens);
         }
@@ -295,7 +327,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 treasuryPoolTokens = (contsPrice * treasuryFee) / 100;
         if (enableAutoSwapTreasury) {
             super._transfer(sender, address(_liqRouter), treasuryPoolTokens);
-            swapEx0xbToken(usdcToken, treasuryPool, treasuryPoolTokens);
+            swapEx0xbToken(treasuryPool, usdcToken, treasuryPoolTokens, 0, block.timestamp);
         } else {
             super._transfer(sender, treasuryPool, treasuryPoolTokens);
         }

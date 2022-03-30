@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "../interfaces/IJoeRouter02.sol";
 import "../interfaces/IJoeFactory.sol";
 
@@ -96,22 +97,47 @@ contract LiquidityRouter is Initializable {
     }
 
     function swapExact0xBForToken(
-        address outTokenAddr,
         address receiver,
-        uint256 amountIn
+        address outTokenAddr,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline
     ) external onlyAuthorities {
         address[] memory path = getPath(outTokenAddr, false);
-        uint256[] memory amountOut = this.getOutputAmount(false, outTokenAddr, amountIn);
 
-        uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint256[] memory result = uniswapV2Router.swapExactTokensForTokens(
             amountIn,
-            0, // accept any amount
+            amountOutMin,
             path,
             receiver,
-            block.timestamp
+            deadline
         );
 
-        emit Swapped(token, amountIn, outTokenAddr, amountOut[amountOut.length - 1]);
+        emit Swapped(token, amountIn, outTokenAddr, result[result.length - 1]);
+    }
+
+    function swap0xBForExactToken(
+        address receiver,
+        address outTokenAddr,
+        uint256 amountOut,
+        uint256 amountInMax,
+        uint256 deadline
+    ) external onlyAuthorities {
+        address[] memory path = getPath(outTokenAddr, false);
+
+        uint256[] memory result = uniswapV2Router.swapTokensForExactTokens(
+            amountOut,
+            amountInMax,
+            path,
+            receiver,
+            deadline
+        );
+
+        uint256 amountInActual = result[0];
+        // return residual tokens to sender
+        IERC20(token).transfer(receiver, amountInMax - amountInActual);
+
+        emit Swapped(token, amountInActual, outTokenAddr, amountOut);
     }
 
     // ----- Private/Internal Helpers -----
