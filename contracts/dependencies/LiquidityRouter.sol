@@ -79,18 +79,23 @@ contract LiquidityRouter is Initializable {
     }
 
     function swapExactTokenFor0xB(
-        address inTokenAddr,
         address receiver,
-        uint256 amountIn
+        address inTokenAddr,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline
     ) external onlyAuthorities {
+        if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountIn) {
+            approveTokenAccess(inTokenAddr);
+        }
         address[] memory path = getPath(inTokenAddr, true);
 
         uint256[] memory result = uniswapV2Router.swapExactTokensForTokens(
             amountIn,
-            0, // accept any amount of USDC
+            amountOutMin,
             path,
             receiver,
-            block.timestamp
+            deadline
         );
 
         emit Swapped(inTokenAddr, amountIn, token, result[result.length - 1]);
@@ -141,6 +146,11 @@ contract LiquidityRouter is Initializable {
     }
 
     // ----- Private/Internal Helpers -----
+    function approveTokenAccess(address tokenAddr) internal {
+        IERC20 targetToken = IERC20(tokenAddr);
+        targetToken.approve(routerAddress, uint256(2**256 - 1));
+    }
+
     function getPath(address target, bool is0xBOut) internal view returns (address[] memory) {
         if (target == uniswapV2Router.WAVAX()) {
             address[] memory result = new address[](2);
