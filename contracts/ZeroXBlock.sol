@@ -32,7 +32,9 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     uint256 public liquidityPoolFee;
     uint256 public developmentFee;
     uint256 public totalFees;
+
     uint256 public cashoutFee;
+    uint256 public swapFee;
 
     // ***** Storage for swapping *****
     bool public enableAutoSwapTreasury;
@@ -50,7 +52,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     event ContsMinted(address sender);
     event RewardCashoutOne(address sender, uint256 index);
     event RewardCashoutAll(address sender);
-    event AddLiquidity(address sender, uint256 tokens);
 
     // ***** Constructor *****
     function initialize(
@@ -85,6 +86,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         rewardsFee = fees[2];
         liquidityPoolFee = fees[3];
         cashoutFee = fees[4];
+        swapFee = fees[5];
 
         totalFees = rewardsFee + liquidityPoolFee + developmentFee + treasuryFee;
 
@@ -125,23 +127,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     function setLiquidityRouter(address liqRouter) external onlyOwner {
         require(liqRouter != address(0), "NEW_LROUTER: zero addr");
         _liqRouter = LiquidityRouter(liqRouter);
-    }
-
-    function changeContPrice(ContType _cType, uint256 newPrice) external onlyOwner {
-        _crm._changeContPrice(_cType, newPrice);
-    }
-
-    function changeRewardAPRPerCont(ContType _cType, int256 deductPcent) external onlyOwner {
-        require(deductPcent < int256(HUNDRED_PERCENT), "REDUCE_RWD: do not reduce more than 100%");
-        _crm._changeRewardAPRPerCont(_cType, deductPcent);
-    }
-
-    function changeCashoutTimeout(uint256 newTime) external onlyOwner {
-        _crm._changeCashoutTimeout(newTime);
-    }
-
-    function updateUniswapV2Router(address _newAddr) external onlyOwner {
-        _liqRouter.updateUniswapV2Router(_newAddr);
     }
 
     function updateDevelopmentFundWallet(address payable wall) external onlyOwner {
@@ -197,6 +182,11 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         cashoutFee = value;
     }
 
+    function updateSwapFee(uint256 value) external onlyOwner {
+        require(value <= HUNDRED_PERCENT, "FEES: swap exceeding 100%");
+        swapFee = value;
+    }
+
     function setBlacklistStatus(address account, bool value) external onlyOwner {
         _isBlacklisted[account] = value;
     }
@@ -230,52 +220,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         super._transfer(from, to, amount);
     }
 
-    function swapEx0xbToken(
-        address receiver,
-        address tokenAddr,
-        uint256 amountIn,
-        uint256 amountOutMin,
-        uint256 deadline
-    ) private {
-        if (this.allowance(address(_liqRouter), _liqRouter.routerAddress()) < amountIn) {
-            _approve(address(_liqRouter), _liqRouter.routerAddress(), uint256(2**256 - 1));
-        }
-        _liqRouter.swapExact0xBForToken(receiver, tokenAddr, amountIn, amountOutMin, deadline);
-    }
-
-    function swap0xbExToken(
-        address receiver,
-        address tokenAddr,
-        uint256 amountOut,
-        uint256 amountInMax,
-        uint256 deadline
-    ) private {
-        if (this.allowance(address(_liqRouter), _liqRouter.routerAddress()) < amountInMax) {
-            _approve(address(_liqRouter), _liqRouter.routerAddress(), uint256(2**256 - 1));
-        }
-        _liqRouter.swap0xBForExactToken(receiver, tokenAddr, amountOut, amountInMax, deadline);
-    }
-
-    function swapExToken0xb(
-        address receiver,
-        address tokenAddr,
-        uint256 amountIn,
-        uint256 amountOutMin,
-        uint256 deadline
-    ) private {
-        _liqRouter.swapExactTokenFor0xB(receiver, tokenAddr, amountIn, amountOutMin, deadline);
-    }
-
-    function swapTokenEx0xb(
-        address receiver,
-        address tokenAddr,
-        uint256 amountOut,
-        uint256 amountInMax,
-        uint256 deadline
-    ) private {
-        _liqRouter.swapTokenForExact0xB(receiver, tokenAddr, amountOut, amountInMax, deadline);
-    }
-
     function provideLiquidity(address sender, uint256 tokens) private {
         super._transfer(sender, liquidityPool, tokens);
     }
@@ -285,63 +229,99 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         address tokenAddr,
         uint256 amountIn,
         uint256 slippageTolerance,
-        uint256 deadline
+        uint256 wait
     ) public {
         address sender = msg.sender;
-        uint256[] memory amountOutCurrent = _liqRouter.getOutputAmount(false, tokenAddr, amountIn);
+        uint256 fee = (amountIn * swapFee) / HUNDRED_PERCENT;
+        uint256[] memory amountOutCurrent = _liqRouter.getOutputAmount(false, tokenAddr, amountIn - fee);
         uint256 amountOutMin = amountOutCurrent[amountOutCurrent.length - 1];
         amountOutMin = (amountOutMin * (HUNDRED_PERCENT - slippageTolerance)) / HUNDRED_PERCENT;
         require(balanceOf(sender) >= amountIn, "SWAP: insufficient balance");
-        _transfer(sender, address(_liqRouter), amountIn);
-        swapEx0xbToken(sender, tokenAddr, amountIn, amountOutMin, deadline);
+        _transfer(sender, address(_liqRouter), amountIn - fee);
+        provideLiquidity(sender, fee);
+        _liqRouter.swapExact0xBForToken(sender, tokenAddr, amountIn - fee, amountOutMin, block.timestamp + wait);
     }
 
     function swap0xBForExactToken(
         address tokenAddr,
         uint256 amountOut,
         uint256 slippageTolerance,
-        uint256 deadline
+        uint256 wait
     ) public {
         address sender = msg.sender;
         uint256[] memory amountInCurrent = _liqRouter.getInputAmount(false, tokenAddr, amountOut);
         uint256 amountInMax = (amountInCurrent[0] * (HUNDRED_PERCENT + slippageTolerance)) / HUNDRED_PERCENT;
-        require(balanceOf(sender) >= amountInMax, "SWAP: insufficient balance");
+        uint256 fee = (amountInCurrent[0] * swapFee) / HUNDRED_PERCENT;
+        require(balanceOf(sender) >= amountInMax + fee, "SWAP: insufficient balance");
         _transfer(sender, address(_liqRouter), amountInMax);
-        swap0xbExToken(sender, tokenAddr, amountOut, amountInMax, deadline);
+        provideLiquidity(sender, fee);
+        _liqRouter.swap0xBForExactToken(sender, tokenAddr, amountOut, amountInMax, block.timestamp + wait);
     }
 
     function swapExactTokenFor0xB(
         address tokenAddr,
         uint256 amountIn,
         uint256 slippageTolerance,
-        uint256 deadline
+        uint256 wait
     ) public {
         address sender = msg.sender;
-        uint256[] memory amountOutCurrent = _liqRouter.getOutputAmount(true, tokenAddr, amountIn);
+        uint256 fee = (amountIn * swapFee) / HUNDRED_PERCENT;
+        uint256[] memory amountOutCurrent = _liqRouter.getOutputAmount(true, tokenAddr, amountIn - fee);
         uint256 amountOutMin = amountOutCurrent[amountOutCurrent.length - 1];
         amountOutMin = (amountOutMin * (HUNDRED_PERCENT - slippageTolerance)) / HUNDRED_PERCENT;
         IERC20 targetToken = IERC20(tokenAddr);
         require(targetToken.balanceOf(sender) >= amountIn, "SWAP: insufficient balance");
-        require(targetToken.allowance(sender, address(this)) >= amountIn, "SWAP: need to approve first");
-        targetToken.transferFrom(sender, address(_liqRouter), amountIn);
-        swapExToken0xb(sender, tokenAddr, amountIn, amountOutMin, deadline);
+        targetToken.transferFrom(sender, address(_liqRouter), amountIn - fee);
+        targetToken.transferFrom(sender, liquidityPool, fee);
+        _liqRouter.swapExactTokenFor0xB(sender, tokenAddr, amountIn - fee, amountOutMin, block.timestamp + wait);
     }
 
     function swapTokenForExact0xB(
         address tokenAddr,
         uint256 amountOut,
         uint256 slippageTolerance,
-        uint256 deadline
+        uint256 wait
     ) public {
         address sender = msg.sender;
         uint256[] memory amountInCurrent = _liqRouter.getInputAmount(true, tokenAddr, amountOut);
         uint256 amountInMax = (amountInCurrent[0] * (HUNDRED_PERCENT + slippageTolerance)) / HUNDRED_PERCENT;
         IERC20 targetToken = IERC20(tokenAddr);
-        require(targetToken.balanceOf(sender) >= amountInMax, "SWAP: insufficient balance");
-        require(targetToken.allowance(sender, address(this)) >= amountInMax, "SWAP: insufficient balance");
-
+        uint256 fee = (amountInCurrent[0] * swapFee) / HUNDRED_PERCENT;
+        require(targetToken.balanceOf(sender) >= amountInMax + fee, "SWAP: insufficient balance");
         targetToken.transferFrom(sender, address(_liqRouter), amountInMax);
-        swapTokenEx0xb(sender, tokenAddr, amountOut, amountInMax, deadline);
+        targetToken.transferFrom(sender, liquidityPool, fee);
+        _liqRouter.swapTokenForExact0xB(sender, tokenAddr, amountOut, amountInMax, block.timestamp + wait);
+    }
+
+    function swapExactAVAXFor0xB(uint256 slippageTolerance, uint256 wait) external payable {
+        address sender = msg.sender;
+        uint256 amountIn = msg.value;
+        uint256 fee = (amountIn * swapFee) / HUNDRED_PERCENT;
+        uint256[] memory amountOutCurrent = _liqRouter.getOutputAmount(
+            true,
+            _liqRouter.wrappedNative(),
+            amountIn - fee
+        );
+        uint256 amountOutMin = amountOutCurrent[amountOutCurrent.length - 1];
+        amountOutMin = (amountOutMin * (HUNDRED_PERCENT - slippageTolerance)) / HUNDRED_PERCENT;
+        payable(liquidityPool).transfer(fee);
+        _liqRouter.swapExactAVAXFor0xB{ value: amountIn - fee }(sender, amountOutMin, block.timestamp + wait);
+    }
+
+    function swapAVAXForExact0xB(
+        uint256 amountOut,
+        uint256 slippageTolerance,
+        uint256 wait
+    ) external payable {
+        address sender = msg.sender;
+        uint256 amountInMaxSent = msg.value;
+        uint256[] memory amountInCurrent = _liqRouter.getOutputAmount(true, _liqRouter.wrappedNative(), amountOut);
+        uint256 amountInMax = amountInCurrent[0];
+        amountInMax = (amountInMax * (HUNDRED_PERCENT + slippageTolerance)) / HUNDRED_PERCENT;
+        uint256 fee = (amountInMax * swapFee) / HUNDRED_PERCENT;
+        require(amountInMaxSent >= amountInMax, "SWAP: msg.value less than slippage");
+        payable(liquidityPool).transfer(fee);
+        _liqRouter.swapAVAXForExact0xB{ value: amountInMaxSent - fee }(sender, amountOut, block.timestamp + wait);
     }
 
     function mintConts(string[] memory names, ContType _cType) external {
@@ -368,7 +348,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 developmentFundTokens = (contsPrice * developmentFee) / 100;
         if (enableAutoSwapDevFund) {
             super._transfer(sender, address(_liqRouter), developmentFundTokens);
-            swapEx0xbToken(developmentFundPool, usdcToken, developmentFundTokens, 0, block.timestamp);
+            _liqRouter.swapExact0xBForToken(developmentFundPool, usdcToken, developmentFundTokens, 0, block.timestamp);
         } else {
             super._transfer(sender, developmentFundPool, developmentFundTokens);
         }
@@ -381,7 +361,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 treasuryPoolTokens = (contsPrice * treasuryFee) / 100;
         if (enableAutoSwapTreasury) {
             super._transfer(sender, address(_liqRouter), treasuryPoolTokens);
-            swapEx0xbToken(treasuryPool, usdcToken, treasuryPoolTokens, 0, block.timestamp);
+            _liqRouter.swapExact0xBForToken(treasuryPool, usdcToken, treasuryPoolTokens, 0, block.timestamp);
         } else {
             super._transfer(sender, treasuryPool, treasuryPoolTokens);
         }
@@ -415,8 +395,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            // Professor: keep it in reward for now.
-            // provideLiquidity(rewardsPool, liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
@@ -437,8 +415,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            // Professor: keep it in reward for now.
-            // provideLiquidity(rewardsPool, liquidityPool, feeAmount);
         }
         rewardAmount -= feeAmount;
 
@@ -448,24 +424,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     }
 
     // ***** READ function for public *****
-    function getOutputAmount(
-        bool is0xBOut,
-        address targetToken,
-        uint256 inputAmount
-    ) external view returns (uint256[] memory) {
-        return _liqRouter.getOutputAmount(is0xBOut, targetToken, inputAmount);
-    }
-
-    function getInputAmount(
-        bool is0xBOut,
-        address targetToken,
-        uint256 outputAmount
-    ) external view returns (uint256[] memory) {
-        return _liqRouter.getInputAmount(is0xBOut, targetToken, outputAmount);
-    }
-
     function getRewardAmount() external view returns (uint256) {
-        require(_msgSender() != address(0), "SENDER IS 0");
         return _crm._getRewardAmountOf(_msgSender());
     }
 
@@ -477,50 +436,47 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         return _crm.currentRewardAPRPerNewCont(_cType);
     }
 
-    function getCashoutTimeout() external view returns (uint256) {
-        return _crm.cashoutTimeout();
-    }
-
     function getContsNames() external view returns (string memory) {
-        require(_msgSender() != address(0), "SENDER IS 0");
         return _crm._getContsNames(_msgSender());
     }
 
     function getContsCurrentAPR() external view returns (string memory) {
-        require(_msgSender() != address(0), "SENDER IS 0");
         return _crm._getContsCurrentAPR(_msgSender());
     }
 
     function getContsInitialAPR() external view returns (string memory) {
-        require(_msgSender() != address(0), "SENDER IS 0");
         return _crm._getContsInitialAPR(_msgSender());
     }
 
     function getContsCreationTime() external view returns (string memory) {
-        require(_msgSender() != address(0), "SENDER IS 0");
         return _crm._getContsCreationTime(_msgSender());
     }
 
     function getContsTypes() external view returns (string memory) {
-        require(_msgSender() != address(0), "SENDER IS 0");
         return _crm._getContsTypes(_msgSender());
     }
 
     function getContsRewards() external view returns (string memory) {
-        require(_msgSender() != address(0), "SENDER IS 0");
         return _crm._getContsRewardAvailable(_msgSender());
     }
 
     function getContsLastCashoutTime() external view returns (string memory) {
-        require(_msgSender() != address(0), "SENDER IS 0");
         return _crm._getContsLastUpdateTime(_msgSender());
     }
 
-    function getTotalConts() external view returns (uint256) {
-        return _crm.totalContsCreated();
+    function totalContsPerType(ContType _ct) external view returns (uint256) {
+        return _crm.totalContsPerContType(_ct);
     }
 
-    function getTotalContsPerContType(ContType __cType) external view returns (uint256) {
-        return _crm.totalContsPerContType(__cType);
+    function tokenReceivedPerType(ContType _ct) external view returns (uint256) {
+        return _crm.totalContsPerContType(_ct) + uint256(_ct);
+    }
+
+    function breakevenPerType(ContType _ct) external view returns (uint256) {
+        return _crm.totalContsPerContType(_ct) - uint256(_ct);
+    }
+
+    function claimedRewardsPerType(ContType _ct) external view returns (uint256) {
+        return _crm.totalContsPerContType(_ct) * uint256(_ct);
     }
 }

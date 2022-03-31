@@ -37,7 +37,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const rewardsFee = 55;
   const liquidityPoolFee = 20;
   const cashoutFee = 10;
-  const fees = [devFundFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee];
+  const swapFee = 25;
+  const fees = [devFundFee, treasuryFee, rewardsFee, liquidityPoolFee, cashoutFee, swapFee];
   const USDCToken = process.env.USDC_TOKEN_ADDRESS;
 
   await deploy("ZeroXBlock", {
