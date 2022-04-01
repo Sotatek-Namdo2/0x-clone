@@ -2,27 +2,33 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/finance/PaymentSplitterUpgradeable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "../interfaces/IJoeRouter02.sol";
 import "../interfaces/IJoeFactory.sol";
 
-contract LiquidityRouter is Initializable {
+contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
     // ----- Router Addresses -----
     IJoeRouter02 private uniswapV2Router;
     address public routerAddress;
     address public uniswapV2Pair;
 
     // ----- Contract Storage -----
-    address public admin0xB;
+    address payable public admin0xB;
     IERC20 private token;
     address public tokenAddress;
 
     // ----- Constructor -----
     function initialize(address _router) public initializer {
         require(_router != address(0), "ROUTER ZERO");
+        address[] memory payees = new address[](1);
+        payees[0] = msg.sender;
+        uint256[] memory shares = new uint256[](1);
+        shares[0] = 1;
+        __PaymentSplitter_init(payees, shares);
         routerAddress = _router;
         uniswapV2Router = IJoeRouter02(_router);
-        admin0xB = msg.sender;
+        admin0xB = payable(msg.sender);
     }
 
     // ----- Event -----
@@ -194,9 +200,9 @@ contract LiquidityRouter is Initializable {
         uint256 amountOut,
         uint256 deadline
     ) external payable onlyAuthorities {
-        uint256 amountInMax = msg.value;
+        // uint256 amountInMax = msg.value;
         address[] memory path = getPath(this.wrappedNative(), true);
-        uint256[] memory result = uniswapV2Router.swapAVAXForExactTokens{ value: amountInMax }(
+        uint256[] memory result = uniswapV2Router.swapAVAXForExactTokens{ value: msg.value }(
             amountOut,
             path,
             receiver,
@@ -204,7 +210,7 @@ contract LiquidityRouter is Initializable {
         );
         uint256 amountInActual = result[0];
         // return residual tokens to sender
-        payable(receiver).transfer(amountInMax - amountInActual);
+        // payable(receiver).transfer(msg.value - amountInActual);
         emit SwappedNative(amountInActual, tokenAddress, amountOut);
     }
 

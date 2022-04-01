@@ -124,7 +124,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         _crm = CONTRewardManagement(crm);
     }
 
-    function setLiquidityRouter(address liqRouter) external onlyOwner {
+    function setLiquidityRouter(address payable liqRouter) external onlyOwner {
         require(liqRouter != address(0), "NEW_LROUTER: zero addr");
         _liqRouter = LiquidityRouter(liqRouter);
     }
@@ -314,14 +314,14 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 wait
     ) external payable {
         address sender = msg.sender;
-        uint256 amountInMaxSent = msg.value;
-        uint256[] memory amountInCurrent = _liqRouter.getOutputAmount(true, _liqRouter.wrappedNative(), amountOut);
+        // uint256 amountInMaxSent = msg.value;
+        uint256[] memory amountInCurrent = _liqRouter.getInputAmount(true, _liqRouter.wrappedNative(), amountOut);
         uint256 amountInMax = amountInCurrent[0];
         amountInMax = (amountInMax * (HUNDRED_PERCENT + slippageTolerance)) / HUNDRED_PERCENT;
-        uint256 fee = (amountInMax * swapFee) / HUNDRED_PERCENT;
-        require(amountInMaxSent >= amountInMax, "SWAP: msg.value less than slippage");
+        uint256 fee = (amountInCurrent[0] * swapFee) / HUNDRED_PERCENT;
+        require(msg.value >= amountInMax + fee, "SWAP: msg.value less than slippage");
+        _liqRouter.swapAVAXForExact0xB{ value: msg.value - fee }(sender, amountOut, block.timestamp + wait);
         payable(liquidityPool).transfer(fee);
-        _liqRouter.swapAVAXForExact0xB{ value: amountInMaxSent - fee }(sender, amountOut, block.timestamp + wait);
     }
 
     function mintConts(string[] memory names, ContType _cType) external {
