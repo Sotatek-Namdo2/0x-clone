@@ -55,6 +55,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     event ContsMinted(address sender);
     event RewardCashoutOne(address sender, uint256 index);
     event RewardCashoutAll(address sender);
+    event Funded(string walletName, ContType cType, address token, uint256 amount);
 
     // ***** Constructor *****
     function initialize(
@@ -203,10 +204,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     }
 
     // ***** Private helpers functions *****
-    function getContNumberOf(address account) private view returns (uint256) {
-        return _crm._getContNumberOf(account);
-    }
-
     function _transfer(
         address from,
         address to,
@@ -217,8 +214,25 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         super._transfer(from, to, amount);
     }
 
-    function provideLiquidity(address sender, uint256 tokens) private {
-        super._transfer(sender, liquidityPool, tokens);
+    // Send fund from sender to pool.
+    // amount send will be in 0xB. Will be converted if target token is in other tokens
+    // Emit Funded.
+    // ** not yet supported to fund from cashout or swaps
+    function _fund(
+        address sender,
+        string memory targetWalletName,
+        address targetWalletAddress,
+        ContType cType,
+        address token,
+        uint256 amount
+    ) private {
+        if (token == address(this)) {
+            _transfer(sender, targetWalletAddress, amount);
+        } else {
+            _transfer(sender, address(_liqRouter), amount);
+            _liqRouter.swapExact0xBForTokenNoFee(targetWalletAddress, token, amount);
+        }
+        emit Funded(targetWalletName, cType, token, amount);
     }
 
     // ***** WRITE functions for public *****
@@ -302,7 +316,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
             sender != developmentFundPool && sender != rewardsPool && sender != treasuryPool,
             "CONTMINT: pools cannot create cont"
         );
-        uint256 contCount = getContNumberOf(sender);
+        uint256 contCount = _crm._getContNumberOf(sender);
         require(contCount + names.length <= ownedContsLimit, "CONTMINT: reached mint limit");
         uint256 contsPrice = _crm.contPrice(_cType) * names.length;
         totalTokensPaidForMinting += contsPrice;
@@ -311,28 +325,26 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         // DEV FUND
         uint256 developmentFundTokens = (contsPrice * developmentFee) / 100;
         if (enableAutoSwapDevFund) {
-            super._transfer(sender, address(_liqRouter), developmentFundTokens);
-            _liqRouter.swapExact0xBForToken(developmentFundPool, usdcToken, developmentFundTokens, 0, block.timestamp);
+            _fund(sender, "devfund", developmentFundPool, _cType, usdcToken, developmentFundTokens);
         } else {
-            super._transfer(sender, developmentFundPool, developmentFundTokens);
+            _fund(sender, "devfund", developmentFundPool, _cType, address(this), developmentFundTokens);
         }
 
         // REWARDS POOL
         uint256 rewardsPoolTokens = (contsPrice * rewardsFee) / 100;
-        super._transfer(sender, rewardsPool, rewardsPoolTokens);
+        _fund(sender, "rewards", rewardsPool, _cType, address(this), rewardsPoolTokens);
 
         // TREASURY
         uint256 treasuryPoolTokens = (contsPrice * treasuryFee) / 100;
         if (enableAutoSwapTreasury) {
-            super._transfer(sender, address(_liqRouter), treasuryPoolTokens);
-            _liqRouter.swapExact0xBForToken(treasuryPool, usdcToken, treasuryPoolTokens, 0, block.timestamp);
+            _fund(sender, "treasury", treasuryPool, _cType, usdcToken, treasuryPoolTokens);
         } else {
-            super._transfer(sender, treasuryPool, treasuryPoolTokens);
+            _fund(sender, "treasury", treasuryPool, _cType, address(this), treasuryPoolTokens);
         }
 
         // LIQUIDITY
         uint256 liquidityTokens = (contsPrice * liquidityPoolFee) / 100;
-        provideLiquidity(sender, liquidityTokens);
+        _fund(sender, "liquidity", liquidityPool, _cType, address(this), liquidityTokens);
 
         // EXTRA
         uint256 extraT = contsPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
@@ -387,51 +399,4 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     }
 
     // ***** READ function for public *****
-    function getRewardAmount() external view returns (uint256) {
-        return _crm._getRewardAmountOf(_msgSender());
-    }
-
-    function getContsNames() external view returns (string memory) {
-        return _crm._getContsNames(_msgSender());
-    }
-
-    function getContsCurrentAPR() external view returns (string memory) {
-        return _crm._getContsCurrentAPR(_msgSender());
-    }
-
-    function getContsInitialAPR() external view returns (string memory) {
-        return _crm._getContsInitialAPR(_msgSender());
-    }
-
-    function getContsCreationTime() external view returns (string memory) {
-        return _crm._getContsCreationTime(_msgSender());
-    }
-
-    function getContsTypes() external view returns (string memory) {
-        return _crm._getContsTypes(_msgSender());
-    }
-
-    function getContsRewards() external view returns (string memory) {
-        return _crm._getContsRewardAvailable(_msgSender());
-    }
-
-    function getContsLastCashoutTime() external view returns (string memory) {
-        return _crm._getContsLastUpdateTime(_msgSender());
-    }
-
-    function totalContsPerType(ContType _ct) external view returns (uint256) {
-        return _crm.totalContsPerContType(_ct);
-    }
-
-    function tokenReceivedPerType(ContType _ct) external view returns (uint256) {
-        return _crm.totalContsPerContType(_ct) + uint256(_ct);
-    }
-
-    function breakevenPerType(ContType _ct) external view returns (uint256) {
-        return _crm.totalContsPerContType(_ct) - uint256(_ct);
-    }
-
-    function claimedRewardsPerType(ContType _ct) external view returns (uint256) {
-        return _crm.totalContsPerContType(_ct) * uint256(_ct);
-    }
 }

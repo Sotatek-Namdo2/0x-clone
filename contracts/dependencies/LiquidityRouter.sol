@@ -112,6 +112,24 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uniswapV2Pair = _uniswapV2Pair;
     }
 
+    // Only use to fund wallets
+    function swapExact0xBForTokenNoFee(
+        address receiver,
+        address outTokenAddr,
+        uint256 amountIn
+    ) external onlyAuthorities {
+        if (token.allowance(address(this), routerAddress) < amountIn) {
+            token.approve(routerAddress, uint256(2**256 - 1));
+        }
+        address[] memory path = getPath(outTokenAddr, false);
+        uint256[] memory result;
+        if (outTokenAddr == uniswapV2Router.WAVAX()) {
+            result = uniswapV2Router.swapExactTokensForAVAX(amountIn, 0, path, receiver, block.timestamp);
+        } else {
+            result = uniswapV2Router.swapExactTokensForTokens(amountIn, 0, path, receiver, block.timestamp);
+        }
+    }
+
     function swapExact0xBForToken(
         address receiver,
         address outTokenAddr,
