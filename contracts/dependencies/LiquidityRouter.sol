@@ -8,6 +8,8 @@ import "../interfaces/IJoeRouter02.sol";
 import "../interfaces/IJoeFactory.sol";
 
 contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
+    uint256 private constant HUNDRED_PERCENT = 100_000_000;
+
     // ----- Router Addresses -----
     IJoeRouter02 private uniswapV2Router;
     address public routerAddress;
@@ -17,6 +19,9 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
     address payable public admin0xB;
     IERC20 private token;
     address public tokenAddress;
+
+    uint256 public swapTaxFee;
+    address public swapTaxPool;
 
     // ----- Constructor -----
     function initialize(address _router) public initializer {
@@ -46,25 +51,41 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         bool is0xBOut,
         address targetToken,
         uint256 inputAmount
-    ) external view returns (uint256[] memory) {
+    ) public view returns (uint256) {
         address[] memory path = getPath(targetToken, is0xBOut);
-        return uniswapV2Router.getAmountsOut(inputAmount, path);
+        uint256[] memory amountsOut = uniswapV2Router.getAmountsOut(inputAmount, path);
+        uint256 result = amountsOut[amountsOut.length - 1];
+        result = (result * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
+        return result;
     }
 
     function getInputAmount(
         bool is0xBOut,
         address targetToken,
         uint256 outputAmount
-    ) external view returns (uint256[] memory) {
+    ) public view returns (uint256) {
         address[] memory path = getPath(targetToken, is0xBOut);
-        return uniswapV2Router.getAmountsIn(outputAmount, path);
+        uint256[] memory amountsIn = uniswapV2Router.getAmountsIn(outputAmount, path);
+        uint256 result = amountsIn[0];
+        result = (result * (HUNDRED_PERCENT + swapTaxFee)) / HUNDRED_PERCENT;
+        return result;
     }
 
-    function wrappedNative() external view returns (address) {
+    function wrappedNative() public view returns (address) {
         return uniswapV2Router.WAVAX();
     }
 
     // ----- External WRITE functions -----
+    function updateSwapTaxPool(address payable newPool) external onlyAuthorities {
+        require(newPool != address(0), "UPD_WALL: zero addr");
+        swapTaxPool = newPool;
+    }
+
+    function updateSwapFee(uint256 value) external onlyAuthorities {
+        require(value <= HUNDRED_PERCENT, "FEES: swap exceeding 100%");
+        swapTaxFee = value;
+    }
+
     function setToken(address _token) external onlyAuthorities {
         require(_token != address(0), "NEW_TOKEN: zero addr");
         tokenAddress = _token;
@@ -101,12 +122,17 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         if (token.allowance(address(this), routerAddress) < amountIn) {
             token.approve(routerAddress, uint256(2**256 - 1));
         }
+
+        require(getOutputAmount(false, outTokenAddr, amountIn) >= amountOutMin, "INSUFFICIENT_OUTPUT_AMOUNT");
+        uint256 fee = (amountIn * swapTaxFee) / HUNDRED_PERCENT;
+        token.transfer(swapTaxPool, fee);
+
         address[] memory path = getPath(outTokenAddr, false);
         uint256[] memory result;
         if (outTokenAddr == uniswapV2Router.WAVAX()) {
-            result = uniswapV2Router.swapExactTokensForAVAX(amountIn, amountOutMin, path, receiver, deadline);
+            result = uniswapV2Router.swapExactTokensForAVAX(amountIn - fee, amountOutMin, path, receiver, deadline);
         } else {
-            result = uniswapV2Router.swapExactTokensForTokens(amountIn, amountOutMin, path, receiver, deadline);
+            result = uniswapV2Router.swapExactTokensForTokens(amountIn - fee, amountOutMin, path, receiver, deadline);
         }
         emit Swapped(tokenAddress, amountIn, outTokenAddr, result[result.length - 1]);
     }
@@ -121,6 +147,8 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         if (token.allowance(address(this), routerAddress) < amountInMax) {
             token.approve(routerAddress, uint256(2**256 - 1));
         }
+
+        require(getInputAmount(false, outTokenAddr, amountOut) <= amountInMax, "INSUFFICIENT_INPUT_AMOUNT");
         address[] memory path = getPath(outTokenAddr, false);
         uint256[] memory result;
         if (outTokenAddr == uniswapV2Router.WAVAX()) {
@@ -129,8 +157,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
             result = uniswapV2Router.swapTokensForExactTokens(amountOut, amountInMax, path, receiver, deadline);
         }
         uint256 amountInActual = result[0];
+        uint256 fee = (amountInActual * swapTaxFee) / HUNDRED_PERCENT;
+
         // return residual tokens to sender
-        token.transfer(receiver, amountInMax - amountInActual);
+        token.transfer(swapTaxPool, fee);
+        token.transfer(receiver, amountInMax - amountInActual - fee);
         emit Swapped(tokenAddress, amountInActual, outTokenAddr, amountOut);
     }
 
@@ -144,9 +175,13 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountIn) {
             approveTokenAccess(inTokenAddr);
         }
+        require(getOutputAmount(true, inTokenAddr, amountIn) >= amountOutMin, "INSUFFICIENT_OUTPUT_AMOUNT");
+        uint256 fee = (amountIn * swapTaxFee) / HUNDRED_PERCENT;
+        IERC20(inTokenAddr).transfer(swapTaxPool, fee);
+
         address[] memory path = getPath(inTokenAddr, true);
         uint256[] memory result = uniswapV2Router.swapExactTokensForTokens(
-            amountIn,
+            amountIn - fee,
             amountOutMin,
             path,
             receiver,
@@ -165,6 +200,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountInMax) {
             approveTokenAccess(inTokenAddr);
         }
+        require(getInputAmount(true, inTokenAddr, amountOut) <= amountInMax, "INSUFFICIENT_INPUT_AMOUNT");
         address[] memory path = getPath(inTokenAddr, true);
         uint256[] memory result = uniswapV2Router.swapTokensForExactTokens(
             amountOut,
@@ -174,8 +210,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
             deadline
         );
         uint256 amountInActual = result[0];
+        uint256 fee = (amountInActual * swapTaxFee) / HUNDRED_PERCENT;
+
         // return residual tokens to sender
-        IERC20(inTokenAddr).transfer(receiver, amountInMax - amountInActual);
+        IERC20(inTokenAddr).transfer(swapTaxPool, fee);
+        IERC20(inTokenAddr).transfer(receiver, amountInMax - amountInActual - fee);
         emit Swapped(inTokenAddr, amountInActual, tokenAddress, amountOut);
     }
 
@@ -185,8 +224,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 deadline
     ) external payable onlyAuthorities {
         uint256 amountIn = msg.value;
-        address[] memory path = getPath(this.wrappedNative(), true);
-        uint256[] memory result = uniswapV2Router.swapExactAVAXForTokens{ value: amountIn }(
+        require(getOutputAmount(true, wrappedNative(), amountIn) >= amountOutMin, "INSUFFICIENT_OUTPUT_AMOUNT");
+        uint256 fee = (amountIn * swapTaxFee) / HUNDRED_PERCENT;
+        payable(swapTaxPool).transfer(fee);
+        address[] memory path = getPath(wrappedNative(), true);
+        uint256[] memory result = uniswapV2Router.swapExactAVAXForTokens{ value: amountIn - fee }(
             amountOutMin,
             path,
             receiver,
@@ -201,7 +243,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 deadline
     ) external payable onlyAuthorities {
         // uint256 amountInMax = msg.value;
-        address[] memory path = getPath(this.wrappedNative(), true);
+        address[] memory path = getPath(wrappedNative(), true);
         uint256[] memory result = uniswapV2Router.swapAVAXForExactTokens{ value: msg.value }(
             amountOut,
             path,
@@ -209,8 +251,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
             deadline
         );
         uint256 amountInActual = result[0];
+        uint256 fee = (amountInActual * swapTaxFee) / HUNDRED_PERCENT;
+
         // return residual tokens to sender
-        // payable(receiver).transfer(msg.value - amountInActual);
+        payable(swapTaxPool).transfer(fee);
+        payable(receiver).transfer(msg.value - amountInActual - fee);
         emit SwappedNative(amountInActual, tokenAddress, amountOut);
     }
 
