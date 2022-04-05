@@ -202,6 +202,12 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         enableAutoSwapDevFund = newVal;
     }
 
+    function rescueMissentToken(address userAddr, uint256 tokens) external onlyOwner {
+        require(tokens <= balanceOf(address(this)), "SAVE_MISSENT: tokens exceed addr balance");
+        require(userAddr != address(0), "SAVE_MISSENT: zero_address");
+        _transfer(address(this), userAddr, tokens);
+    }
+
     // ***** Private helpers functions *****
     function getContNumberOf(address account) private view returns (uint256) {
         return _crm._getContNumberOf(account);
