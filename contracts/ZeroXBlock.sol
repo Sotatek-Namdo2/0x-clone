@@ -6,13 +6,15 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/finance/PaymentSplitterUpgradeable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "./interfaces/IJoeRouter02.sol";
+import "./interfaces/IJoeFactory.sol";
 import "./dependencies/CONTRewardManagement.sol";
 import "./dependencies/LiquidityRouter.sol";
 
 contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, PaymentSplitterUpgradeable {
     CONTRewardManagement public _crm;
-    LiquidityRouter public _liqRouter;
 
+    IJoeRouter02 public uniswapV2Router;
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
 
     uint256 public ownedContsLimit;
@@ -57,7 +59,9 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     bool public enableCashout;
     bool public enableMintConts;
 
+    // ***** V2 new storages *****
     address public cashoutTaxPool;
+    LiquidityRouter public _liqRouter;
 
     // ***** Events *****
     event ContsMinted(address sender);
