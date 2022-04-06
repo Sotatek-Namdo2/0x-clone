@@ -57,6 +57,7 @@ function getChainConfig(network: keyof typeof chainIds): NetworkUserConfig {
     accounts,
     chainId: chainIds[network],
     url,
+    gasMultiplier: 1.5,
   };
 }
 
@@ -80,6 +81,7 @@ const config: HardhatUserConfig = {
       accounts,
       chainId: chainIds.avax,
       url: "https://api.avax.network/ext/bc/C/rpc",
+      gasMultiplier: 2,
     },
     fuji: {
       accounts,

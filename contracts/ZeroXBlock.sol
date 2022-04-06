@@ -6,18 +6,21 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/finance/PaymentSplitterUpgradeable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "./interfaces/IJoeRouter02.sol";
+import "./interfaces/IJoeFactory.sol";
 import "./dependencies/CONTRewardManagement.sol";
 import "./dependencies/LiquidityRouter.sol";
 
 contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, PaymentSplitterUpgradeable {
     CONTRewardManagement public _crm;
-    LiquidityRouter public _liqRouter;
 
+    IJoeRouter02 public uniswapV2Router;
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
 
     uint256 public ownedContsLimit;
     uint256 private mintContLimit;
 
+    address public uniswapV2Pair;
     uint256 public totalTokensPaidForMinting;
 
     // ***** Pools Address *****
@@ -25,9 +28,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     address public treasuryPool;
     address public rewardsPool;
     address public liquidityPool;
-
-    address public cashoutTaxPool;
-    address public swapTaxPool;
 
     // ***** Storage for fees *****
     uint256 public rewardsFee;
@@ -37,19 +37,31 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     uint256 public totalFees;
 
     uint256 public cashoutFee;
-    uint256 public swapFee;
 
     // ***** Storage for swapping *****
     bool public enableAutoSwapTreasury;
     bool public enableAutoSwapDevFund;
     address public usdcToken;
 
+    // ***** Anti-bot *****
+    bool public antiBotEnabled;
+    uint256 public launchBuyLimit;
+    uint256 public launchBuyTimeout;
+    mapping(address => uint256) public _lastBuyOnLaunch;
+
     // ***** Blacklist storage *****
     mapping(address => bool) public _isBlacklisted;
+
+    // ***** Market makers pairs *****
+    mapping(address => bool) public automatedMarketMakerPairs;
 
     // ***** Enable Cashout *****
     bool public enableCashout;
     bool public enableMintConts;
+
+    // ***** V2 new storages *****
+    address public cashoutTaxPool;
+    LiquidityRouter public _liqRouter;
 
     // ***** Events *****
     event ContsMinted(address sender);
@@ -84,13 +96,14 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         treasuryPool = addresses[3];
         rewardsPool = addresses[4];
 
+        cashoutTaxPool = rewardsPool;
+
         require(fees[0] > 0 && fees[1] > 0 && fees[2] > 0 && fees[3] > 0 && fees[4] > 0, "0% FEES FOUND");
         developmentFee = fees[0];
         treasuryFee = fees[1];
         rewardsFee = fees[2];
         liquidityPoolFee = fees[3];
         cashoutFee = fees[4];
-        swapFee = fees[5];
 
         totalFees = rewardsFee + liquidityPoolFee + developmentFee + treasuryFee;
 
@@ -201,6 +214,12 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
 
     function changeEnableAutoSwapDevFund(bool newVal) external onlyOwner {
         enableAutoSwapDevFund = newVal;
+    }
+
+    function rescueMissentToken(address userAddr, uint256 tokens) external onlyOwner {
+        require(tokens <= balanceOf(address(this)), "SAVE_MISSENT: tokens exceed addr balance");
+        require(userAddr != address(0), "SAVE_MISSENT: zero_address");
+        _transfer(address(this), userAddr, tokens);
     }
 
     // ***** Private helpers functions *****
