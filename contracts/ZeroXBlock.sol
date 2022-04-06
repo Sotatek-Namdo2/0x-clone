@@ -27,7 +27,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     address public liquidityPool;
 
     address public cashoutTaxPool;
-    address public swapTaxPool;
 
     // ***** Storage for fees *****
     uint256 public rewardsFee;
@@ -37,7 +36,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     uint256 public totalFees;
 
     uint256 public cashoutFee;
-    uint256 public swapFee;
 
     // ***** Storage for swapping *****
     bool public enableAutoSwapTreasury;
@@ -91,7 +89,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         rewardsFee = fees[2];
         liquidityPoolFee = fees[3];
         cashoutFee = fees[4];
-        swapFee = fees[5];
 
         totalFees = rewardsFee + liquidityPoolFee + developmentFee + treasuryFee;
 
