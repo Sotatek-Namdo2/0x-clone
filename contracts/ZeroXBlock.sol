@@ -18,6 +18,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     uint256 public ownedContsLimit;
     uint256 private mintContLimit;
 
+    address public uniswapV2Pair;
     uint256 public totalTokensPaidForMinting;
 
     // ***** Pools Address *****
@@ -25,8 +26,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     address public treasuryPool;
     address public rewardsPool;
     address public liquidityPool;
-
-    address public cashoutTaxPool;
 
     // ***** Storage for fees *****
     uint256 public rewardsFee;
@@ -42,12 +41,23 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     bool public enableAutoSwapDevFund;
     address public usdcToken;
 
+    // ***** Anti-bot *****
+    bool public antiBotEnabled;
+    uint256 public launchBuyLimit;
+    uint256 public launchBuyTimeout;
+    mapping(address => uint256) public _lastBuyOnLaunch;
+
     // ***** Blacklist storage *****
     mapping(address => bool) public _isBlacklisted;
+
+    // ***** Market makers pairs *****
+    mapping(address => bool) public automatedMarketMakerPairs;
 
     // ***** Enable Cashout *****
     bool public enableCashout;
     bool public enableMintConts;
+
+    address public cashoutTaxPool;
 
     // ***** Events *****
     event ContsMinted(address sender);
