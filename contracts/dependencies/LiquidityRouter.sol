@@ -24,7 +24,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
     address public swapTaxPool;
 
     // ----- Constructor -----
-    function initialize(address _router) public initializer {
+    function initialize(
+        address _router,
+        uint256 _fee,
+        address _pool
+    ) public initializer {
         require(_router != address(0), "ROUTER ZERO");
         address[] memory payees = new address[](1);
         payees[0] = msg.sender;
@@ -34,6 +38,9 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         routerAddress = _router;
         uniswapV2Router = IJoeRouter02(_router);
         admin0xB = payable(msg.sender);
+
+        swapTaxFee = _fee;
+        swapTaxPool = _pool;
     }
 
     // ----- Event -----

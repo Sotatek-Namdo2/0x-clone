@@ -83,6 +83,8 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         treasuryPool = addresses[3];
         rewardsPool = addresses[4];
 
+        cashoutTaxPool = rewardsPool;
+
         require(fees[0] > 0 && fees[1] > 0 && fees[2] > 0 && fees[3] > 0 && fees[4] > 0, "0% FEES FOUND");
         developmentFee = fees[0];
         treasuryFee = fees[1];

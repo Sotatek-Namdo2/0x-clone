@@ -6,6 +6,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const { deploy } = deployments;
   const { deployer } = await getNamedAccounts();
   const uniV2Router = process.env.UNIV2ROUTER_ADDRESS;
+  const swapTaxPool = process.env.DEVELOPMENT_FUND_WALLET;
+  const swapTaxFee = 100_000;
 
   await deploy("LiquidityRouter", {
     from: deployer,
@@ -15,7 +17,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       execute: {
         init: {
           methodName: "initialize",
-          args: [uniV2Router],
+          args: [uniV2Router, swapTaxFee, swapTaxPool],
         },
       },
     },
