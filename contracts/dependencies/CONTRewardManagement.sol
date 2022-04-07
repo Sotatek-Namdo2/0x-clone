@@ -48,7 +48,12 @@ contract CONTRewardManagement is Initializable {
     address public token;
 
     uint256 public totalContsCreated;
-    mapping(ContType => uint256) private _totalContsPerContType;
+
+    // ----- Admin Dashboard Variables -----
+    mapping(ContType => uint256) private _totalContsPerType;
+    mapping(ContType => uint256) private _breakevenContsPerType;
+    mapping(ContType => uint256) private _claimedRewardPerType;
+    mapping(ContType => uint256) private _tokensReceivedPerType;
 
     // ----- Constructor -----
     function initialize(
@@ -63,7 +68,7 @@ contract CONTRewardManagement is Initializable {
         for (uint256 i = 0; i < 3; i++) {
             contPrice[ContType(i)] = _contPrices[i];
             initRewardAPRPerCont[ContType(i)] = _rewardAPRs[i];
-            _totalContsPerContType[ContType(i)] = 0;
+            _totalContsPerType[ContType(i)] = 0;
             aprChangesHistory[ContType(i)];
             aprChangesHistory[ContType(i)].push(APRChangesEntry({ timestamp: initialTstamp, reducedPercentage: 0 }));
         }
@@ -112,7 +117,7 @@ contract CONTRewardManagement is Initializable {
 
         contOwners.set(account, _contsOfUser[account].length);
         totalContsCreated += contNames.length;
-        _totalContsPerContType[_cType] += contNames.length;
+        _totalContsPerType[_cType] += contNames.length;
     }
 
     function _cashoutContReward(address account, uint256 _contIndex) external onlyAuthorities returns (uint256) {
@@ -121,7 +126,7 @@ contract CONTRewardManagement is Initializable {
         ContEntity storage cont = conts[_contIndex];
         require(claimable(cont.lastUpdateTime), "CASHOUT ERROR: You have to wait before claiming this cont.");
         uint256 currentTstamp = block.timestamp;
-        uint256 rewardCont = contCurrentReward(cont, currentTstamp);
+        uint256 rewardCont = contRewardInInterval(cont, cont.lastUpdateTime, currentTstamp);
         cont.lastUpdateTime = currentTstamp;
         return rewardCont;
     }
@@ -145,7 +150,7 @@ contract CONTRewardManagement is Initializable {
 
         for (uint256 i = 0; i < contsCount; i++) {
             _cont = conts[i];
-            rewardsTotal += contCurrentReward(_cont, currentTstamp);
+            rewardsTotal += contRewardInInterval(_cont, _cont.lastUpdateTime, currentTstamp);
             _cont.lastUpdateTime = currentTstamp;
         }
         return rewardsTotal;
@@ -187,6 +192,36 @@ contract CONTRewardManagement is Initializable {
         autoReduceAPRRate = newRate;
     }
 
+    function _updateAdminDashboard() external onlyAuthorities {
+        uint256 zero = 0;
+        uint256[3] memory breakevenCount = [zero, zero, zero];
+        uint256[3] memory claimedReward = [zero, zero, zero];
+        uint256[3] memory tokenReceived = [zero, zero, zero];
+        for (uint64 i = 0; i < contOwners.size(); i++) {
+            address currentAddr = contOwners.getKeyAtIndex(i);
+            for (uint32 j = 0; j < _contsOfUser[currentAddr].length; j++) {
+                ContEntity memory _cont = _contsOfUser[currentAddr][j];
+                uint256 creatime = _cont.creationTime;
+                // breakeven
+                if (_cont.buyPrice <= contRewardInInterval(_cont, creatime, block.timestamp)) {
+                    breakevenCount[uint256(_cont.cType)]++;
+                }
+
+                // claimed
+                claimedReward[uint256(_cont.cType)] += contRewardInInterval(_cont, creatime, _cont.lastUpdateTime);
+
+                // token received
+                tokenReceived[uint256(_cont.cType)] += _cont.buyPrice;
+            }
+        }
+
+        for (uint256 i = 0; i < 3; i++) {
+            _breakevenContsPerType[ContType(i)] = breakevenCount[i];
+            _claimedRewardPerType[ContType(i)] = claimedReward[i];
+            _tokensReceivedPerType[ContType(i)] = tokenReceived[i];
+        }
+    }
+
     // ----- External READ functions -----
     function currentRewardAPRPerNewCont(ContType _cType) external view returns (uint256) {
         uint256 changesLength = aprChangesHistory[_cType].length;
@@ -197,8 +232,20 @@ contract CONTRewardManagement is Initializable {
         return result;
     }
 
-    function totalContsPerContType(ContType _cType) external view returns (uint256) {
-        return _totalContsPerContType[_cType];
+    function totalContsPerType(ContType _cType) external view returns (uint256) {
+        return _totalContsPerType[_cType];
+    }
+
+    function breakevenContsPerType(ContType _cType) external view returns (uint256) {
+        return _breakevenContsPerType[_cType];
+    }
+
+    function claimedRewardsPerType(ContType _cType) external view returns (uint256) {
+        return _claimedRewardPerType[_cType];
+    }
+
+    function tokensReceivedPerType(ContType _cType) external view returns (uint256) {
+        return _tokensReceivedPerType[_cType];
     }
 
     function _isContOwner(address account) external view returns (bool) {
@@ -216,18 +263,18 @@ contract CONTRewardManagement is Initializable {
 
         for (uint256 i = 0; i < contsCount; i++) {
             ContEntity memory _cont = conts[i];
-            rewardCount += contCurrentReward(_cont, currentTstamp);
+            rewardCount += contRewardInInterval(_cont, _cont.lastUpdateTime, currentTstamp);
         }
 
         return rewardCount;
     }
 
-    function _getRewardAmountOf(address account, uint256 _contIndex) external view returns (uint256) {
+    function _getRewardAmountOfIndex(address account, uint256 _contIndex) external view returns (uint256) {
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 numberOfConts = conts.length;
         require(_contIndex >= 0 && _contIndex < numberOfConts, "CONT: Cont index is improper");
         ContEntity memory cont = conts[_contIndex];
-        uint256 rewardCont = contCurrentReward(cont, block.timestamp);
+        uint256 rewardCont = contRewardInInterval(cont, cont.lastUpdateTime, block.timestamp);
         return rewardCont;
     }
 
@@ -311,11 +358,17 @@ contract CONTRewardManagement is Initializable {
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         uint256 currentTstamp = block.timestamp;
-        string memory _rewardsAvailable = uint2str(contCurrentReward(conts[0], currentTstamp));
+        string memory _rewardsAvailable = uint2str(
+            contRewardInInterval(conts[0], conts[0].lastUpdateTime, currentTstamp)
+        );
         string memory separator = "#";
         for (uint256 i = 1; i < contsCount; i++) {
             _rewardsAvailable = string(
-                abi.encodePacked(_rewardsAvailable, separator, uint2str(contCurrentReward(conts[i], currentTstamp)))
+                abi.encodePacked(
+                    _rewardsAvailable,
+                    separator,
+                    uint2str(contRewardInInterval(conts[i], conts[i].lastUpdateTime, currentTstamp))
+                )
             );
         }
         return _rewardsAvailable;
@@ -374,14 +427,20 @@ contract CONTRewardManagement is Initializable {
         return resultAPR;
     }
 
-    function contCurrentReward(ContEntity memory cont, uint256 curTstamp) private view returns (uint256) {
+    function contRewardInInterval(
+        ContEntity memory cont,
+        uint256 leftTstamp,
+        uint256 rightTstamp
+    ) private view returns (uint256) {
+        require(leftTstamp <= rightTstamp, "wrong tstamps params");
+        require(leftTstamp >= cont.creationTime, "left tstamps bad");
         ContType _cType = cont.cType;
 
-        uint256 lastUpdateIndex = historyBinarySearch(_cType, cont.lastUpdateTime);
+        uint256 lastUpdateIndex = historyBinarySearch(_cType, leftTstamp);
 
         uint256 contBuyPrice = cont.buyPrice;
-        uint256 itrAPR = contAPRAt(cont, cont.lastUpdateTime);
-        uint256 itrTstamp = cont.lastUpdateTime;
+        uint256 itrAPR = contAPRAt(cont, leftTstamp);
+        uint256 itrTstamp = leftTstamp;
         uint256 nextTstamp = 0;
         uint256 result = 0;
         uint256 deltaTstamp;
@@ -407,8 +466,8 @@ contract CONTRewardManagement is Initializable {
             }
         }
 
-        while (itrTstamp != curTstamp) {
-            nextTstamp = curTstamp;
+        while (itrTstamp != rightTstamp) {
+            nextTstamp = rightTstamp;
             diffInterval = (fullIntervalCount(nextTstamp, creatime) != fullIntervalCount(itrTstamp, creatime));
             if (diffInterval) {
                 nextTstamp = creatime + autoReduceAPRInterval * (fullIntervalCount(itrTstamp, creatime) + 1);

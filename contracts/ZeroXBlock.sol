@@ -380,7 +380,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(enableCashout == true, "CSHT: Cashout Disabled");
         require(sender != address(0), "CSHT: zero address");
         require(!_isBlacklisted[sender], "CSHT: blacklisted");
-        uint256 rewardAmount = _crm._getRewardAmountOf(sender, _contIndex);
+        uint256 rewardAmount = _crm._getRewardAmountOfIndex(sender, _contIndex);
         require(rewardAmount > 0, "CSHT: reward not ready");
 
         uint256 feeAmount = 0;
