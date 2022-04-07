@@ -55,6 +55,11 @@ contract CONTRewardManagement is Initializable {
     mapping(ContType => uint256) private _claimedRewardPerType;
     mapping(ContType => uint256) private _tokensReceivedPerType;
 
+    // ----- Events -----
+    event BreakevenChanged(ContType _cType, uint256 delta);
+    event ClaimedRewardAmountChanged(ContType _cType, uint256 delta);
+    event TotalTokensReceivedChanged(ContType _cType, uint256 delta);
+
     // ----- Constructor -----
     function initialize(
         uint256[] memory _contPrices,
@@ -216,8 +221,11 @@ contract CONTRewardManagement is Initializable {
         }
 
         for (uint256 i = 0; i < 3; i++) {
+            emit BreakevenChanged(ContType(i), breakevenCount[i] - _breakevenContsPerType[ContType(i)]);
             _breakevenContsPerType[ContType(i)] = breakevenCount[i];
+            emit ClaimedRewardAmountChanged(ContType(i), claimedReward[i] - _claimedRewardPerType[ContType(i)]);
             _claimedRewardPerType[ContType(i)] = claimedReward[i];
+            emit TotalTokensReceivedChanged(ContType(i), tokenReceived[i] - _tokensReceivedPerType[ContType(i)]);
             _tokensReceivedPerType[ContType(i)] = tokenReceived[i];
         }
     }

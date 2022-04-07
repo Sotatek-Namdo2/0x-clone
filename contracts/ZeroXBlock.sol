@@ -64,9 +64,9 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     LiquidityRouter public _liqRouter;
 
     // ***** Events *****
-    event ContsMinted(address sender);
-    event RewardCashoutOne(address sender, uint256 index);
-    event RewardCashoutAll(address sender);
+    event ContsMinted(address sender, ContType cType, uint256 contsCount);
+    event RewardCashoutOne(address sender, uint256 index, uint256 amount);
+    event RewardCashoutAll(address sender, uint256 amount);
     event Funded(string walletName, ContType cType, address token, uint256 amount);
 
     // ***** Constructor *****
@@ -247,11 +247,12 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     ) private {
         if (token == address(this)) {
             _transfer(sender, targetWalletAddress, amount);
+            emit Funded(targetWalletName, cType, token, amount);
         } else {
             _transfer(sender, address(_liqRouter), amount);
-            _liqRouter.swapExact0xBForTokenNoFee(targetWalletAddress, token, amount);
+            uint256 amountOut = _liqRouter.swapExact0xBForTokenNoFee(targetWalletAddress, token, amount);
+            emit Funded(targetWalletName, cType, token, amountOut);
         }
-        emit Funded(targetWalletName, cType, token, amount);
     }
 
     // ***** WRITE functions for public *****
@@ -372,7 +373,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         }
 
         _crm.createConts(sender, names, _cType);
-        emit ContsMinted(sender);
+        emit ContsMinted(sender, _cType, names.length);
     }
 
     function cashoutReward(uint256 _contIndex) external {
@@ -393,7 +394,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         rewardAmount -= feeAmount;
         _transfer(rewardsPool, sender, rewardAmount);
         _crm._cashoutContReward(sender, _contIndex);
-        emit RewardCashoutOne(sender, _contIndex);
+        emit RewardCashoutOne(sender, _contIndex, rewardAmount);
     }
 
     function cashoutAll() external {
@@ -414,7 +415,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         rewardAmount -= feeAmount;
         _transfer(rewardsPool, sender, rewardAmount);
         _crm._cashoutAllContsReward(sender);
-        emit RewardCashoutAll(sender);
+        emit RewardCashoutAll(sender, rewardAmount);
     }
 
     // ***** READ function for public *****

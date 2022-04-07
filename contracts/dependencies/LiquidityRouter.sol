@@ -124,7 +124,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         address receiver,
         address outTokenAddr,
         uint256 amountIn
-    ) external onlyAuthorities {
+    ) external onlyAuthorities returns (uint256) {
         if (token.allowance(address(this), routerAddress) < amountIn) {
             token.approve(routerAddress, uint256(2**256 - 1));
         }
@@ -135,6 +135,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         } else {
             result = uniswapV2Router.swapExactTokensForTokens(amountIn, 0, path, receiver, block.timestamp);
         }
+        return result[result.length - 1];
     }
 
     function swapExact0xBForToken(
