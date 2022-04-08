@@ -197,7 +197,7 @@ contract CONTRewardManagement is Initializable {
         autoReduceAPRRate = newRate;
     }
 
-    function _updateAdminDashboard() external onlyAuthorities {
+    function _updateAdminDashboard() external {
         uint256 zero = 0;
         uint256[3] memory breakevenCount = [zero, zero, zero];
         uint256[3] memory claimedReward = [zero, zero, zero];
