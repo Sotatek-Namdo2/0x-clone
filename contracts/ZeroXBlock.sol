@@ -65,7 +65,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
 
     // ***** Events *****
     event ContsMinted(address sender, ContType cType, uint256 contsCount);
-    event RewardCashoutOne(address sender, uint256 index, uint256 amount);
+    event RewardCashoutOne(address sender, uint256 index, uint256 amount, ContType cType);
     event RewardCashoutAll(
         address sender,
         uint256 amount,
@@ -399,8 +399,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         }
         rewardAmount -= feeAmount;
         _transfer(rewardsPool, sender, rewardAmount);
-        _crm._cashoutContReward(sender, _contIndex);
-        emit RewardCashoutOne(sender, _contIndex, rewardAmount);
+        uint256 rw;
+        ContType _cType;
+        (rw, _cType) = _crm._cashoutContReward(sender, _contIndex);
+        emit RewardCashoutOne(sender, _contIndex, rewardAmount, _cType);
     }
 
     function cashoutAll() external {

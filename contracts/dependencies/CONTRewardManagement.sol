@@ -125,7 +125,11 @@ contract CONTRewardManagement is Initializable {
         _totalContsPerType[_cType] += contNames.length;
     }
 
-    function _cashoutContReward(address account, uint256 _contIndex) external onlyAuthorities returns (uint256) {
+    function _cashoutContReward(address account, uint256 _contIndex)
+        external
+        onlyAuthorities
+        returns (uint256, ContType)
+    {
         ContEntity[] storage conts = _contsOfUser[account];
         require(_contIndex >= 0 && _contIndex < conts.length, "CONT: Index Error");
         ContEntity storage cont = conts[_contIndex];
@@ -133,7 +137,7 @@ contract CONTRewardManagement is Initializable {
         uint256 currentTstamp = block.timestamp;
         uint256 rewardCont = contRewardInInterval(cont, cont.lastUpdateTime, currentTstamp);
         cont.lastUpdateTime = currentTstamp;
-        return rewardCont;
+        return (rewardCont, cont.cType);
     }
 
     function _cashoutAllContsReward(address account)
