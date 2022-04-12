@@ -136,12 +136,22 @@ contract CONTRewardManagement is Initializable {
         return rewardCont;
     }
 
-    function _cashoutAllContsReward(address account) external onlyAuthorities returns (uint256) {
+    function _cashoutAllContsReward(address account)
+        external
+        onlyAuthorities
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256
+        )
+    {
         ContEntity[] storage conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         require(contsCount > 0, "CASHOUT ERROR: You don't have conts to cash-out");
         ContEntity storage _cont;
         uint256 rewardsTotal = 0;
+        uint256[3] memory typeTotal = [rewardsTotal, rewardsTotal, rewardsTotal];
         uint256 currentTstamp = block.timestamp;
         uint256 latestCashout = 0;
         for (uint256 i = 0; i < contsCount; i++) {
@@ -155,10 +165,12 @@ contract CONTRewardManagement is Initializable {
 
         for (uint256 i = 0; i < contsCount; i++) {
             _cont = conts[i];
-            rewardsTotal += contRewardInInterval(_cont, _cont.lastUpdateTime, currentTstamp);
+            uint256 contReward = contRewardInInterval(_cont, _cont.lastUpdateTime, currentTstamp);
+            rewardsTotal += contReward;
+            typeTotal[uint8(_cont.cType)] += contReward;
             _cont.lastUpdateTime = currentTstamp;
         }
-        return rewardsTotal;
+        return (rewardsTotal, typeTotal[0], typeTotal[1], typeTotal[2]);
     }
 
     function _changeContPrice(ContType _cType, uint256 newPrice) external onlyAuthorities {

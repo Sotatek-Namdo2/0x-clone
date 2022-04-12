@@ -66,7 +66,13 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     // ***** Events *****
     event ContsMinted(address sender, ContType cType, uint256 contsCount);
     event RewardCashoutOne(address sender, uint256 index, uint256 amount);
-    event RewardCashoutAll(address sender, uint256 amount);
+    event RewardCashoutAll(
+        address sender,
+        uint256 amount,
+        uint256 squareAmount,
+        uint256 cubeAmount,
+        uint256 tessAmount
+    );
     event Funded(string walletName, ContType cType, address token, uint256 amount);
 
     // ***** Constructor *****
@@ -404,6 +410,11 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(!_isBlacklisted[sender], "CSHTALL: blacklisted address");
         uint256 rewardAmount = _crm._getRewardAmountOf(sender);
         require(rewardAmount > 0, "CSHTALL: reward not ready");
+        uint256 squareTotal;
+        uint256 cubeTotal;
+        uint256 tessTotal;
+        (rewardAmount, squareTotal, cubeTotal, tessTotal) = _crm._cashoutAllContsReward(sender);
+        squareTotal = (squareTotal * (100 - cashoutFee)) / 100;
 
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
@@ -411,11 +422,13 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
             if (rewardsPool != cashoutTaxPool) {
                 _transfer(rewardsPool, cashoutTaxPool, rewardAmount);
             }
+            squareTotal = (squareTotal * (100 - cashoutFee)) / 100;
+            cubeTotal = (cubeTotal * (100 - cashoutFee)) / 100;
+            tessTotal = (tessTotal * (100 - cashoutFee)) / 100;
         }
         rewardAmount -= feeAmount;
         _transfer(rewardsPool, sender, rewardAmount);
-        _crm._cashoutAllContsReward(sender);
-        emit RewardCashoutAll(sender, rewardAmount);
+        emit RewardCashoutAll(sender, rewardAmount, squareTotal, cubeTotal, tessTotal);
     }
 
     // ***** READ function for public *****
