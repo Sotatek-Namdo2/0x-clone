@@ -124,6 +124,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
 
     // ***** WRITE functions for admin *****
     function setUSDCAddress(address newAddress) external onlyOwner {
+        require(newAddress != address(0), "NEW_USDC: zero addr");
         usdcToken = newAddress;
     }
 
