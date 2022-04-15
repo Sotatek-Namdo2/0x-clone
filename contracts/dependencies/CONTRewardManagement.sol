@@ -52,13 +52,9 @@ contract CONTRewardManagement is Initializable {
     // ----- Admin Dashboard Variables -----
     mapping(ContType => uint256) private _totalContsPerType;
     mapping(ContType => uint256) private _breakevenContsPerType;
-    mapping(ContType => uint256) private _claimedRewardPerType;
-    mapping(ContType => uint256) private _tokensReceivedPerType;
 
     // ----- Events -----
     event BreakevenChanged(ContType _cType, uint256 delta);
-    event ClaimedRewardAmountChanged(ContType _cType, uint256 delta);
-    event TotalTokensReceivedChanged(ContType _cType, uint256 delta);
 
     // ----- Constructor -----
     function initialize(
@@ -216,8 +212,6 @@ contract CONTRewardManagement is Initializable {
     function _updateAdminDashboard() external {
         uint256 zero = 0;
         uint256[3] memory breakevenCount = [zero, zero, zero];
-        uint256[3] memory claimedReward = [zero, zero, zero];
-        uint256[3] memory tokenReceived = [zero, zero, zero];
         for (uint64 i = 0; i < contOwners.size(); i++) {
             address currentAddr = contOwners.getKeyAtIndex(i);
             for (uint32 j = 0; j < _contsOfUser[currentAddr].length; j++) {
@@ -227,22 +221,12 @@ contract CONTRewardManagement is Initializable {
                 if (_cont.buyPrice <= contRewardInInterval(_cont, creatime, block.timestamp)) {
                     breakevenCount[uint256(_cont.cType)]++;
                 }
-
-                // claimed
-                claimedReward[uint256(_cont.cType)] += contRewardInInterval(_cont, creatime, _cont.lastUpdateTime);
-
-                // token received
-                tokenReceived[uint256(_cont.cType)] += _cont.buyPrice;
             }
         }
 
         for (uint256 i = 0; i < 3; i++) {
             emit BreakevenChanged(ContType(i), breakevenCount[i] - _breakevenContsPerType[ContType(i)]);
             _breakevenContsPerType[ContType(i)] = breakevenCount[i];
-            emit ClaimedRewardAmountChanged(ContType(i), claimedReward[i] - _claimedRewardPerType[ContType(i)]);
-            _claimedRewardPerType[ContType(i)] = claimedReward[i];
-            emit TotalTokensReceivedChanged(ContType(i), tokenReceived[i] - _tokensReceivedPerType[ContType(i)]);
-            _tokensReceivedPerType[ContType(i)] = tokenReceived[i];
         }
     }
 
@@ -256,7 +240,7 @@ contract CONTRewardManagement is Initializable {
         return result;
     }
 
-    function totalContsPerType(ContType _cType) external view returns (uint256) {
+    function totalContsPerContType(ContType _cType) external view returns (uint256) {
         return _totalContsPerType[_cType];
     }
 
@@ -264,13 +248,13 @@ contract CONTRewardManagement is Initializable {
         return _breakevenContsPerType[_cType];
     }
 
-    function claimedRewardsPerType(ContType _cType) external view returns (uint256) {
-        return _claimedRewardPerType[_cType];
-    }
+    // function claimedRewardsPerType(ContType _cType) external view returns (uint256) {
+    // return _claimedRewardPerType[_cType];
+    // }
 
-    function tokensReceivedPerType(ContType _cType) external view returns (uint256) {
-        return _tokensReceivedPerType[_cType];
-    }
+    // function tokensReceivedPerType(ContType _cType) external view returns (uint256) {
+    // return _tokensReceivedPerType[_cType];
+    // }
 
     function _isContOwner(address account) external view returns (bool) {
         return isContOwner(account);
