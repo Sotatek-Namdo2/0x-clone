@@ -83,6 +83,11 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         __ERC20_init("0xBlock", "0xB");
         __PaymentSplitter_init(payees, shares);
 
+        for (uint256 i = 0; i < addresses.length; i++) {
+            _mint(addresses[i], balances[i] * (10**18));
+        }
+        require(totalSupply() == 1e24, "TTL SUPPLY DIFF 1 MIL");
+
         require(
             addresses[1] != address(0) &&
                 addresses[2] != address(0) &&
@@ -90,14 +95,15 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
                 addresses[4] != address(0),
             "POOL ZERO FOUND"
         );
+        require(addresses.length == balances.length, "ADDR & BALANCE ERROR");
+
+        require(fees[0] > 0 && fees[1] > 0 && fees[2] > 0 && fees[3] > 0 && fees[4] > 0, "0% FEES FOUND");
         developmentFundPool = addresses[1];
         liquidityPool = addresses[2];
         treasuryPool = addresses[3];
         rewardsPool = addresses[4];
 
         cashoutTaxPool = rewardsPool;
-
-        require(fees[0] > 0 && fees[1] > 0 && fees[2] > 0 && fees[3] > 0 && fees[4] > 0, "0% FEES FOUND");
         developmentFee = fees[0];
         treasuryFee = fees[1];
         rewardsFee = fees[2];
@@ -105,13 +111,6 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         cashoutFee = fees[4];
 
         totalFees = rewardsFee + liquidityPoolFee + developmentFee + treasuryFee;
-
-        require(addresses.length == balances.length, "ADDR & BALANCE ERROR");
-
-        for (uint256 i = 0; i < addresses.length; i++) {
-            _mint(addresses[i], balances[i] * (10**18));
-        }
-        require(totalSupply() == 1e24, "TTL SUPPLY DIFF 1 MIL");
 
         usdcToken = usdcAddr;
         ownedContsLimit = 100;
@@ -445,13 +444,5 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
 
     function tokenReceivedPerType(ContType _ct) external view returns (uint256) {
         return _crm.totalContsPerContType(_ct) + uint256(_ct);
-    }
-
-    function breakevenPerType(ContType _ct) external view returns (uint256) {
-        return _crm.totalContsPerContType(_ct) - uint256(_ct);
-    }
-
-    function claimedRewardsPerType(ContType _ct) external view returns (uint256) {
-        return _crm.totalContsPerContType(_ct) * uint256(_ct);
     }
 }
