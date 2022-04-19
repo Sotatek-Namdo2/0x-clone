@@ -62,6 +62,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     // ***** V2 new storages *****
     address public cashoutTaxPool;
     LiquidityRouter public _liqRouter;
+    bool public enableAutoSwapCashout;
 
     // ***** Events *****
     event ContsMinted(address sender);
@@ -213,6 +214,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
 
     function changeEnableAutoSwapDevFund(bool newVal) external onlyOwner {
         enableAutoSwapDevFund = newVal;
+    }
+
+    function changeEnableAutoSwapCashout(bool newVal) external onlyOwner {
+        enableAutoSwapCashout = newVal;
     }
 
     function rescueMissentToken(address userAddr, uint256 tokens) external onlyOwner {
@@ -374,8 +379,11 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            if (rewardsPool != cashoutTaxPool) {
-                _transfer(rewardsPool, cashoutTaxPool, rewardAmount);
+            if (enableAutoSwapCashout) {
+                super._transfer(sender, address(_liqRouter), feeAmount);
+                _liqRouter.swapExact0xBForToken(cashoutTaxPool, usdcToken, feeAmount, 0, block.timestamp);
+            } else if (cashoutTaxPool != rewardsPool) {
+                super._transfer(sender, cashoutTaxPool, feeAmount);
             }
         }
         rewardAmount -= feeAmount;
