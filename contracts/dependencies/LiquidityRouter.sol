@@ -146,7 +146,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 deadline
     ) external onlyAuthorities {
         if (token.allowance(address(this), routerAddress) < amountIn) {
-            token.approve(routerAddress, uint256(2**256 - 1));
+            token.approve(routerAddress, uint256(amountIn));
         }
 
         require(getOutputAmount(false, outTokenAddr, amountIn) >= amountOutMin, "INSUFFICIENT_OUTPUT_AMOUNT");
@@ -171,7 +171,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 deadline
     ) external onlyAuthorities {
         if (token.allowance(address(this), routerAddress) < amountInMax) {
-            token.approve(routerAddress, uint256(2**256 - 1));
+            token.approve(routerAddress, uint256(amountInMax));
         }
 
         require(getInputAmount(false, outTokenAddr, amountOut) <= amountInMax, "INSUFFICIENT_INPUT_AMOUNT");
@@ -199,7 +199,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 deadline
     ) external onlyAuthorities {
         if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountIn) {
-            approveTokenAccess(inTokenAddr);
+            approveTokenAccess(inTokenAddr, amountIn);
         }
         require(getOutputAmount(true, inTokenAddr, amountIn) >= amountOutMin, "INSUFFICIENT_OUTPUT_AMOUNT");
         uint256 fee = (amountIn * swapTaxFee) / HUNDRED_PERCENT;
@@ -224,7 +224,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 deadline
     ) external onlyAuthorities {
         if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountInMax) {
-            approveTokenAccess(inTokenAddr);
+            approveTokenAccess(inTokenAddr, amountInMax);
         }
         require(getInputAmount(true, inTokenAddr, amountOut) <= amountInMax, "INSUFFICIENT_INPUT_AMOUNT");
         address[] memory path = getPath(inTokenAddr, true);
@@ -286,9 +286,9 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
     }
 
     // ----- Private/Internal Helpers -----
-    function approveTokenAccess(address tokenAddr) internal {
+    function approveTokenAccess(address tokenAddr, uint256 amount) internal {
         IERC20 targetToken = IERC20(tokenAddr);
-        targetToken.approve(routerAddress, uint256(2**256 - 1));
+        targetToken.approve(routerAddress, amount);
     }
 
     function getPath(address target, bool is0xBOut) internal view returns (address[] memory) {

@@ -95,6 +95,10 @@ contract CONTRewardManagement is Initializable {
         token = token_;
     }
 
+    /// @notice create new contract storages for account
+    /// @param account account of owner
+    /// @param contNames list of names of contract
+    /// @param _cType type of contract
     function createConts(
         address account,
         string[] memory contNames,
@@ -121,6 +125,10 @@ contract CONTRewardManagement is Initializable {
         _totalContsPerType[_cType] += contNames.length;
     }
 
+    /// @notice reduce chosen cont reward to 0 and return amount of rewards claimed so token contract can send tokens
+    /// @param account account of owner
+    /// @param _contIndex contract index
+    /// @return rewardsTotal total amount of rewards claimed
     function _cashoutContReward(address account, uint256 _contIndex)
         external
         onlyAuthorities
@@ -136,6 +144,9 @@ contract CONTRewardManagement is Initializable {
         return (rewardCont, cont.cType);
     }
 
+    /// @notice reduce all conts reward to 0 and return amount of rewards claimed so token contract can send tokens
+    /// @param account account of owner
+    /// @return rewardsTotal total amount of rewards claimed
     function _cashoutAllContsReward(address account)
         external
         onlyAuthorities
@@ -184,12 +195,16 @@ contract CONTRewardManagement is Initializable {
         );
     }
 
+    /// @notice only used when admin makes mistake about APR change: undo last APR change of one type
+    /// @param _cType type of contract to pop last change
     function _undoRewardAPRChange(ContType _cType) external onlyAuthorities {
         uint256 changesLength = aprChangesHistory[_cType].length;
         require(changesLength > 1, "UNDO CHANGE: No changes found for cType");
         aprChangesHistory[_cType].pop();
     }
 
+    /// @notice only used when admin makes mistake about APR change: reset every APR changes/
+    /// @param _cType type of contract to pop last change
     function _resetAllAPRChange(ContType _cType, uint256 _initialPrice) external onlyAuthorities {
         initRewardAPRPerCont[_cType] = _initialPrice;
         uint256 initialTstamp = aprChangesHistory[_cType][0].timestamp;
@@ -403,6 +418,11 @@ contract CONTRewardManagement is Initializable {
     }
 
     // ----- Private/Internal Helpers -----
+    /// @notice find first APR change of some type after some timestamp
+    /// @dev use binary search to find the required result in a time-sorted structure
+    /// @param _cType contract type
+    /// @param timestamp timestamp to query
+    /// @return index index of the first change after timestamp
     function historyBinarySearch(ContType _cType, uint256 timestamp) private view returns (uint256) {
         uint256 leftIndex = 0;
         uint256 rightIndex = aprChangesHistory[_cType].length;
@@ -418,6 +438,11 @@ contract CONTRewardManagement is Initializable {
         return contAPRAt(cont, block.timestamp);
     }
 
+    /// @notice calculate APR for a single contract at some timestamp
+    /// @dev iterate through APR change log and calculate the APR at that time
+    /// @param cont contract entity, which contains all infos of a contract
+    /// @param tstamp timestamp to query
+    /// @return resultAPR
     function contAPRAt(ContEntity memory cont, uint256 tstamp) private view returns (uint256) {
         uint256 creatime = cont.creationTime;
         ContType cType = cont.cType;
@@ -492,10 +517,17 @@ contract CONTRewardManagement is Initializable {
         return result;
     }
 
+    /// @notice mathematically count number of intervals has passed between 2 tstamps
+    /// @param input end timestamp
+    /// @param creatime start timestamp
+    /// @return result number of intervals between 2 timestamps
     function fullIntervalCount(uint256 input, uint256 creatime) private view returns (uint256) {
         return (input - creatime) / autoReduceAPRInterval;
     }
 
+    /// @notice shows that if a contract is claimmable
+    /// @param lastUpdateTime timestamp of last update
+    /// @return result true/false
     function claimable(uint256 lastUpdateTime) private view returns (bool) {
         return lastUpdateTime + cashoutTimeout <= block.timestamp;
     }
