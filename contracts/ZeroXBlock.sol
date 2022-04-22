@@ -399,10 +399,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
             if (enableAutoSwapCashout) {
-                super._transfer(sender, address(_liqRouter), feeAmount);
+                super._transfer(rewardsPool, address(_liqRouter), feeAmount);
                 _liqRouter.swapExact0xBForToken(cashoutTaxPool, usdcToken, feeAmount, 0, block.timestamp);
             } else if (cashoutTaxPool != rewardsPool) {
-                super._transfer(sender, cashoutTaxPool, feeAmount);
+                super._transfer(rewardsPool, cashoutTaxPool, feeAmount);
             }
         }
         rewardAmount -= feeAmount;
@@ -429,8 +429,11 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            if (rewardsPool != cashoutTaxPool) {
-                _transfer(rewardsPool, cashoutTaxPool, rewardAmount);
+            if (enableAutoSwapCashout) {
+                super._transfer(rewardsPool, address(_liqRouter), feeAmount);
+                _liqRouter.swapExact0xBForToken(cashoutTaxPool, usdcToken, feeAmount, 0, block.timestamp);
+            } else if (cashoutTaxPool != rewardsPool) {
+                super._transfer(rewardsPool, cashoutTaxPool, feeAmount);
             }
             squareTotal = (squareTotal * (100 - cashoutFee)) / 100;
             cubeTotal = (cubeTotal * (100 - cashoutFee)) / 100;
