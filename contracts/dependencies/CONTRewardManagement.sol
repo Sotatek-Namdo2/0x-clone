@@ -7,7 +7,8 @@ import "../libraries/IterableMapping.sol";
 enum ContType {
     Square,
     Cube,
-    Tesseract
+    Tesseract,
+    Other
 }
 
 contract CONTRewardManagement is Initializable {

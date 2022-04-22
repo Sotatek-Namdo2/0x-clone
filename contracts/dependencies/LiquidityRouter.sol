@@ -144,7 +144,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 amountIn,
         uint256 amountOutMin,
         uint256 deadline
-    ) external onlyAuthorities {
+    ) external onlyAuthorities returns (uint256, uint256) {
         if (token.allowance(address(this), routerAddress) < amountIn) {
             token.approve(routerAddress, uint256(amountIn));
         }
@@ -161,6 +161,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
             result = uniswapV2Router.swapExactTokensForTokens(amountIn - fee, amountOutMin, path, receiver, deadline);
         }
         emit Swapped(tokenAddress, amountIn, outTokenAddr, result[result.length - 1]);
+        return (result[result.length - 1], fee);
     }
 
     function swap0xBForExactToken(
@@ -169,7 +170,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 amountOut,
         uint256 amountInMax,
         uint256 deadline
-    ) external onlyAuthorities {
+    ) external onlyAuthorities returns (uint256, uint256) {
         if (token.allowance(address(this), routerAddress) < amountInMax) {
             token.approve(routerAddress, uint256(amountInMax));
         }
@@ -189,6 +190,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         token.transfer(swapTaxPool, fee);
         token.transfer(receiver, amountInMax - amountInActual - fee);
         emit Swapped(tokenAddress, amountInActual, outTokenAddr, amountOut);
+        return (amountInActual + fee, fee);
     }
 
     function swapExactTokenFor0xB(
@@ -197,7 +199,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 amountIn,
         uint256 amountOutMin,
         uint256 deadline
-    ) external onlyAuthorities {
+    ) external onlyAuthorities returns (uint256, uint256) {
         if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountIn) {
             approveTokenAccess(inTokenAddr, amountIn);
         }
@@ -214,6 +216,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
             deadline
         );
         emit Swapped(inTokenAddr, amountIn, tokenAddress, result[result.length - 1]);
+        return (result[result.length - 1], fee);
     }
 
     function swapTokenForExact0xB(
@@ -222,7 +225,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 amountOut,
         uint256 amountInMax,
         uint256 deadline
-    ) external onlyAuthorities {
+    ) external onlyAuthorities returns (uint256, uint256) {
         if (IERC20(inTokenAddr).allowance(address(this), routerAddress) < amountInMax) {
             approveTokenAccess(inTokenAddr, amountInMax);
         }
@@ -242,13 +245,14 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         IERC20(inTokenAddr).transfer(swapTaxPool, fee);
         IERC20(inTokenAddr).transfer(receiver, amountInMax - amountInActual - fee);
         emit Swapped(inTokenAddr, amountInActual, tokenAddress, amountOut);
+        return (amountInActual + fee, fee);
     }
 
     function swapExactAVAXFor0xB(
         address receiver,
         uint256 amountOutMin,
         uint256 deadline
-    ) external payable onlyAuthorities {
+    ) external payable onlyAuthorities returns (uint256, uint256) {
         uint256 amountIn = msg.value;
         require(getOutputAmount(true, wrappedNative(), amountIn) >= amountOutMin, "INSUFFICIENT_OUTPUT_AMOUNT");
         uint256 fee = (amountIn * swapTaxFee) / HUNDRED_PERCENT;
@@ -261,13 +265,14 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
             deadline
         );
         emit SwappedNative(amountIn, tokenAddress, result[result.length - 1]);
+        return (result[result.length - 1], fee);
     }
 
     function swapAVAXForExact0xB(
         address receiver,
         uint256 amountOut,
         uint256 deadline
-    ) external payable onlyAuthorities {
+    ) external payable onlyAuthorities returns (uint256, uint256) {
         // uint256 amountInMax = msg.value;
         address[] memory path = getPath(wrappedNative(), true);
         uint256[] memory result = uniswapV2Router.swapAVAXForExactTokens{ value: msg.value }(
@@ -283,6 +288,7 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         payable(swapTaxPool).transfer(fee);
         payable(receiver).transfer(msg.value - amountInActual - fee);
         emit SwappedNative(amountInActual, tokenAddress, amountOut);
+        return (amountInActual + fee, fee);
     }
 
     // ----- Private/Internal Helpers -----
