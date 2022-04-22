@@ -285,14 +285,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(balanceOf(sender) >= amountIn, "SWAP: insufficient balance");
         _transfer(sender, address(_liqRouter), amountIn);
         uint256 fee;
-        uint256 result;
-        (result, fee) = _liqRouter.swapExact0xBForToken(
-            sender,
-            tokenAddr,
-            amountIn,
-            amountOutMin,
-            block.timestamp + wait
-        );
+        (, fee) = _liqRouter.swapExact0xBForToken(sender, tokenAddr, amountIn, amountOutMin, block.timestamp + wait);
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
     }
 
@@ -306,14 +299,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(balanceOf(sender) >= amountInMax, "SWAP: insufficient balance");
         _transfer(sender, address(_liqRouter), amountInMax);
         uint256 fee;
-        uint256 result;
-        (result, fee) = _liqRouter.swap0xBForExactToken(
-            sender,
-            tokenAddr,
-            amountOut,
-            amountInMax,
-            block.timestamp + wait
-        );
+        (, fee) = _liqRouter.swap0xBForExactToken(sender, tokenAddr, amountOut, amountInMax, block.timestamp + wait);
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
     }
 
@@ -328,14 +314,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(targetToken.balanceOf(sender) >= amountIn, "SWAP: insufficient balance");
         targetToken.transferFrom(sender, address(_liqRouter), amountIn);
         uint256 fee;
-        uint256 result;
-        (result, fee) = _liqRouter.swapExactTokenFor0xB(
-            sender,
-            tokenAddr,
-            amountIn,
-            amountOutMin,
-            block.timestamp + wait
-        );
+        (, fee) = _liqRouter.swapExactTokenFor0xB(sender, tokenAddr, amountIn, amountOutMin, block.timestamp + wait);
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
     }
 
@@ -350,14 +329,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(targetToken.balanceOf(sender) >= amountInMax, "SWAP: insufficient balance");
         targetToken.transferFrom(sender, address(_liqRouter), amountInMax);
         uint256 fee;
-        uint256 result;
-        (result, fee) = _liqRouter.swapTokenForExact0xB(
-            sender,
-            tokenAddr,
-            amountOut,
-            amountInMax,
-            block.timestamp + wait
-        );
+        (, fee) = _liqRouter.swapTokenForExact0xB(sender, tokenAddr, amountOut, amountInMax, block.timestamp + wait);
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
     }
 
@@ -365,8 +337,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         address sender = msg.sender;
         uint256 amountIn = msg.value;
         uint256 fee;
-        uint256 result;
-        (result, fee) = _liqRouter.swapExactAVAXFor0xB{ value: amountIn }(sender, amountOutMin, block.timestamp + wait);
+        (, fee) = _liqRouter.swapExactAVAXFor0xB{ value: amountIn }(sender, amountOutMin, block.timestamp + wait);
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
     }
 
@@ -378,8 +349,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         address sender = msg.sender;
         require(msg.value >= amountInMax, "SWAP: msg.value less than slippage");
         uint256 fee;
-        uint256 result;
-        (result, fee) = _liqRouter.swapAVAXForExact0xB{ value: msg.value }(sender, amountOut, block.timestamp + wait);
+        (, fee) = _liqRouter.swapAVAXForExact0xB{ value: msg.value }(sender, amountOut, block.timestamp + wait);
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
     }
 
