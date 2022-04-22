@@ -250,12 +250,12 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     // ** not yet supported to fund from cashout or swaps
     function _fund(
         address sender,
-        string memory targetWalletName,
         address targetWalletAddress,
         ContType cType,
         address token,
         uint256 amount
     ) private {
+        string memory targetWalletName = _walletName(targetWalletAddress);
         if (token == address(this)) {
             _transfer(sender, targetWalletAddress, amount);
             emit Funded(targetWalletName, cType, token, amount);
@@ -264,6 +264,14 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
             uint256 amountOut = _liqRouter.swapExact0xBForTokenNoFee(targetWalletAddress, token, amount);
             emit Funded(targetWalletName, cType, token, amountOut);
         }
+    }
+
+    function _walletName(address addr) public view returns (string memory) {
+        if (addr == rewardsPool) return "rewards";
+        if (addr == developmentFundPool) return "devfund";
+        if (addr == treasuryPool) return "treasury";
+        if (addr == liquidityPool) return "liquidity";
+        return "_";
     }
 
     // ***** WRITE functions for public *****
@@ -356,26 +364,26 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         // DEV FUND
         uint256 developmentFundTokens = (contsPrice * developmentFee) / 100;
         if (enableAutoSwapDevFund) {
-            _fund(sender, "devfund", developmentFundPool, _cType, usdcToken, developmentFundTokens);
+            _fund(sender, developmentFundPool, _cType, usdcToken, developmentFundTokens);
         } else {
-            _fund(sender, "devfund", developmentFundPool, _cType, address(this), developmentFundTokens);
+            _fund(sender, developmentFundPool, _cType, address(this), developmentFundTokens);
         }
 
         // REWARDS POOL
         uint256 rewardsPoolTokens = (contsPrice * rewardsFee) / 100;
-        _fund(sender, "rewards", rewardsPool, _cType, address(this), rewardsPoolTokens);
+        _fund(sender, rewardsPool, _cType, address(this), rewardsPoolTokens);
 
         // TREASURY
         uint256 treasuryPoolTokens = (contsPrice * treasuryFee) / 100;
         if (enableAutoSwapTreasury) {
-            _fund(sender, "treasury", treasuryPool, _cType, usdcToken, treasuryPoolTokens);
+            _fund(sender, treasuryPool, _cType, usdcToken, treasuryPoolTokens);
         } else {
-            _fund(sender, "treasury", treasuryPool, _cType, address(this), treasuryPoolTokens);
+            _fund(sender, treasuryPool, _cType, address(this), treasuryPoolTokens);
         }
 
         // LIQUIDITY
         uint256 liquidityTokens = (contsPrice * liquidityPoolFee) / 100;
-        _fund(sender, "liquidity", liquidityPool, _cType, address(this), liquidityTokens);
+        _fund(sender, liquidityPool, _cType, address(this), liquidityTokens);
 
         // EXTRA
         uint256 extraT = contsPrice - developmentFundTokens - rewardsPoolTokens - treasuryPoolTokens - liquidityTokens;
@@ -396,20 +404,21 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(rewardAmount > 0, "CSHT: reward not ready");
 
         uint256 feeAmount = 0;
-        if (cashoutFee > 0) {
-            feeAmount = (rewardAmount * (cashoutFee)) / (100);
-            if (enableAutoSwapCashout) {
-                super._transfer(rewardsPool, address(_liqRouter), feeAmount);
-                _liqRouter.swapExact0xBForToken(cashoutTaxPool, usdcToken, feeAmount, 0, block.timestamp);
-            } else if (cashoutTaxPool != rewardsPool) {
-                super._transfer(rewardsPool, cashoutTaxPool, feeAmount);
-            }
-        }
         rewardAmount -= feeAmount;
         _transfer(rewardsPool, sender, rewardAmount);
         uint256 rw;
         ContType _cType;
         (rw, _cType) = _crm._cashoutContReward(sender, _contIndex);
+
+        if (cashoutFee > 0) {
+            feeAmount = (rewardAmount * (cashoutFee)) / (100);
+            if (enableAutoSwapCashout) {
+                _fund(rewardsPool, cashoutTaxPool, _cType, usdcToken, feeAmount);
+            } else if (cashoutTaxPool != rewardsPool) {
+                _fund(rewardsPool, cashoutTaxPool, _cType, address(this), feeAmount);
+            }
+        }
+
         emit RewardCashoutOne(sender, _contIndex, rewardAmount, _cType);
     }
 
@@ -424,16 +433,19 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 cubeTotal;
         uint256 tessTotal;
         (rewardAmount, squareTotal, cubeTotal, tessTotal) = _crm._cashoutAllContsReward(sender);
-        squareTotal = (squareTotal * (100 - cashoutFee)) / 100;
 
         uint256 feeAmount = 0;
         if (cashoutFee > 0) {
             feeAmount = (rewardAmount * (cashoutFee)) / (100);
             if (enableAutoSwapCashout) {
-                super._transfer(rewardsPool, address(_liqRouter), feeAmount);
-                _liqRouter.swapExact0xBForToken(cashoutTaxPool, usdcToken, feeAmount, 0, block.timestamp);
+                // crazy gas fee, might have to check and optimize
+                _fund(rewardsPool, cashoutTaxPool, ContType.Square, usdcToken, (squareTotal * cashoutFee) / 100);
+                _fund(rewardsPool, cashoutTaxPool, ContType.Cube, usdcToken, (cubeTotal * cashoutFee) / 100);
+                _fund(rewardsPool, cashoutTaxPool, ContType.Tesseract, usdcToken, (tessTotal * cashoutFee) / 100);
             } else if (cashoutTaxPool != rewardsPool) {
-                super._transfer(rewardsPool, cashoutTaxPool, feeAmount);
+                _fund(rewardsPool, cashoutTaxPool, ContType.Square, address(this), (squareTotal * cashoutFee) / 100);
+                _fund(rewardsPool, cashoutTaxPool, ContType.Cube, address(this), (cubeTotal * cashoutFee) / 100);
+                _fund(rewardsPool, cashoutTaxPool, ContType.Tesseract, address(this), (tessTotal * cashoutFee) / 100);
             }
             squareTotal = (squareTotal * (100 - cashoutFee)) / 100;
             cubeTotal = (cubeTotal * (100 - cashoutFee)) / 100;
