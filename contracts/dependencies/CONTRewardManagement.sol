@@ -84,6 +84,11 @@ contract CONTRewardManagement is Initializable {
         _;
     }
 
+    modifier onlyToken() {
+        require(msg.sender == token, "Access Denied!");
+        _;
+    }
+
     // ----- External WRITE functions -----
     function setAdmin(address newAdmin) external onlyAuthorities {
         require(newAdmin != address(0), "zero address");
@@ -103,7 +108,7 @@ contract CONTRewardManagement is Initializable {
         address account,
         string[] memory contNames,
         ContType _cType
-    ) external onlyAuthorities {
+    ) external onlyToken {
         _contsOfUser[account];
         uint256 currentAPR = this.currentRewardAPRPerNewCont(_cType);
 
@@ -129,11 +134,7 @@ contract CONTRewardManagement is Initializable {
     /// @param account account of owner
     /// @param _contIndex contract index
     /// @return rewardsTotal total amount of rewards claimed
-    function _cashoutContReward(address account, uint256 _contIndex)
-        external
-        onlyAuthorities
-        returns (uint256, ContType)
-    {
+    function _cashoutContReward(address account, uint256 _contIndex) external onlyToken returns (uint256, ContType) {
         ContEntity[] storage conts = _contsOfUser[account];
         require(_contIndex >= 0 && _contIndex < conts.length, "CONT: Index Error");
         ContEntity storage cont = conts[_contIndex];
@@ -149,7 +150,7 @@ contract CONTRewardManagement is Initializable {
     /// @return rewardsTotal total amount of rewards claimed
     function _cashoutAllContsReward(address account)
         external
-        onlyAuthorities
+        onlyToken
         returns (
             uint256,
             uint256,

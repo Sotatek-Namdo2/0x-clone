@@ -81,7 +81,9 @@ const config: HardhatUserConfig = {
       accounts,
       chainId: chainIds.avax,
       url: "https://api.avax.network/ext/bc/C/rpc",
-      gasMultiplier: 2,
+      live: true,
+      saveDeployments: true,
+      gasPrice: 80000000000,
     },
     fuji: {
       accounts,
