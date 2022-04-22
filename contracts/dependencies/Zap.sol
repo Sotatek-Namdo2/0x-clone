@@ -151,6 +151,16 @@ contract Zap is OwnableUpgradeable {
         zeroXBlockToken = token_;
     }
 
+    function changeUSDCAddress(address token_) external onlyOwner {
+        require(token_ != address(0), "zero address");
+        usdcToken = token_;
+    }
+
+    function changeUSDTAddress(address token_) external onlyOwner {
+        require(token_ != address(0), "zero address");
+        usdtToken = token_;
+    }
+
     /// @notice withdraw token that contract hold
     /// @param _token token address
     function withdraw(address _token) external onlyOwner {
