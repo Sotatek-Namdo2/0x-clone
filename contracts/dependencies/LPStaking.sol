@@ -39,8 +39,12 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
 
     // ----- Contract Storage -----
     uint256 public lpStakingEntitiesLimit;
+
+    // ----- Limits on withdrawal -----
     uint256 public withdrawTimeout;
-    uint256 public withdrawTaxPeriod;
+    uint256[] public withdrawTaxLevel;
+    uint256[] public withdrawTaxPortion;
+    address public earlyWithdrawTaxPool;
 
     PoolInfo[] public pools;
     mapping(uint32 => mapping(address => UserLPStakeInfo)) private userInfo;
@@ -60,7 +64,9 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
         admin0xB = msg.sender;
         lpStakingEntitiesLimit = 100;
         withdrawTimeout = DAY;
-        withdrawTaxPeriod = DAY * 30;
+        withdrawTaxLevel = [0, 0, DAY * 30, DAY * 60];
+        withdrawTaxPortion = [5_000_000, 5_000_000, 2_500_000, 0];
+        earlyWithdrawTaxPool = msg.sender;
     }
 
     // ----- Events -----
@@ -92,6 +98,32 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
 
     function isWhitelisted(address addr) public view returns (bool) {
         return whitelistAuthorities[addr];
+    }
+
+    function withdrawable(
+        uint32 _poolId,
+        address addr,
+        uint32 _index
+    ) public view returns (bool) {
+        require(_poolId < pools.length, "wrong id");
+        LPStakeEntity memory entity = userInfo[_poolId][addr].entities[uint8(_index)];
+        return (entity.startTimestamp + withdrawTimeout < block.timestamp);
+    }
+
+    function taxOfEntity(
+        uint32 _poolId,
+        address addr,
+        uint32 _index
+    ) public view returns (uint256) {
+        require(_poolId < pools.length, "wrong id");
+        LPStakeEntity memory entity = userInfo[_poolId][addr].entities[uint8(_index)];
+        uint256 durationSinceStart = block.timestamp - entity.startTimestamp;
+        for (uint256 i = withdrawTaxPortion.length - 1; i > 0; i--) {
+            if (withdrawTaxLevel[i] <= durationSinceStart) {
+                return withdrawTaxPortion[i];
+            }
+        }
+        return 0;
     }
 
     // ----- Admin WRITE functions -----
@@ -149,6 +181,7 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
     ) external {
         require(_poolId < pools.length, "wrong id");
         require(_amount > 0, "please unstake");
+        require(withdrawable(_poolId, msg.sender, _index), "entity in withdrawal timeout");
         address sender = msg.sender;
         UserLPStakeInfo storage user = userInfo[_poolId][sender];
         require(_index < user.size, "wrong index");
@@ -161,10 +194,14 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
         // transfer 0xB reward
         uint256 reward = (entity.amount * pool.acc0xBPerShare) / ONE_LP - entity.rewardDebt;
         IERC20(token0xBAddress).transfer(sender, reward);
-        // todo: taxing
         entity.rewardDebt = entity.rewardDebt + reward;
 
-        pool.lpToken.transferFrom(address(this), address(msg.sender), _amount);
+        uint256 tax = taxOfEntity(_poolId, sender, _index);
+        if (tax > 0) {
+            tax = (tax * _amount) / HUNDRED_PERCENT;
+            pool.lpToken.transferFrom(address(this), earlyWithdrawTaxPool, tax);
+        }
+        pool.lpToken.transferFrom(address(this), address(msg.sender), _amount - tax);
         pool.lpAmountInPool = pool.lpAmountInPool - _amount;
 
         // swap from last place to current entity
