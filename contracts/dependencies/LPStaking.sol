@@ -8,18 +8,24 @@ import "../interfaces/IJoeRouter02.sol";
 import "../interfaces/IJoeFactory.sol";
 
 // todo: comment code
-// todo: write more READ fn
+
+// structure:
+// - My pools:
+// + APR (read BA docs)
 
 contract LPStaking is Initializable, PaymentSplitterUpgradeable {
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
     uint256 private constant DAY = 86400;
+    uint256 private constant YEAR = 86400 * 365;
     uint256 private constant ONE_LP = 1e18;
+    string private constant SEPARATOR = "#";
 
     // ----- Structs -----
     struct LPStakeEntity {
         uint256 amount;
         uint256 rewardDebt;
-        uint256 startTimestamp;
+        uint256 creationTime;
+        uint256 withdrawn;
     }
 
     struct UserLPStakeInfo {
@@ -78,6 +84,70 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
     }
 
     // ----- External READ functions -----
+    function getAPR(uint32 _poolId) public view returns (uint256 apr) {
+        require(_poolId < pools.length, "wrong id");
+        PoolInfo memory pool = pools[_poolId];
+        apr = (pool.totalDistribute * YEAR * uint256(1e18)) / pool.duration / pool.lpAmountInPool;
+    }
+
+    function totalStakeOfUser(uint32 _poolId, address addr) public view returns (uint256 totalStake) {
+        require(_poolId < pools.length, "wrong id");
+        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        totalStake = 0;
+        for (uint8 i = 1; i < user.size; i++) {
+            totalStake += user.entities[i].amount;
+        }
+    }
+
+    function getUserTimestamps(uint32 _poolId, address addr) public view returns (string memory res) {
+        require(_poolId < pools.length, "wrong id");
+        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        if (user.size == 0) {
+            return "";
+        }
+        res = uint2str(user.entities[0].creationTime);
+        for (uint8 i = 1; i < user.size; i++) {
+            res = string(abi.encodePacked(res, SEPARATOR, uint2str(user.entities[i].creationTime)));
+        }
+    }
+
+    function getUserStakeAmounts(uint32 _poolId, address addr) public view returns (string memory res) {
+        require(_poolId < pools.length, "wrong id");
+        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        if (user.size == 0) {
+            return "";
+        }
+        res = uint2str(user.entities[0].amount + user.entities[0].withdrawn);
+        for (uint8 i = 1; i < user.size; i++) {
+            uint256 amount = user.entities[i].amount + user.entities[i].withdrawn;
+            res = string(abi.encodePacked(res, SEPARATOR, uint2str(amount)));
+        }
+    }
+
+    function getUserPendingReward(uint32 _poolId, address addr) public view returns (string memory res) {
+        require(_poolId < pools.length, "wrong id");
+        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        if (user.size == 0) {
+            return "";
+        }
+        res = uint2str(pendingReward(_poolId, addr, 0));
+        for (uint8 i = 1; i < user.size; i++) {
+            res = string(abi.encodePacked(res, SEPARATOR, uint2str(pendingReward(_poolId, addr, i))));
+        }
+    }
+
+    function getUserUnstakedAmount(uint32 _poolId, address addr) public view returns (string memory res) {
+        require(_poolId < pools.length, "wrong id");
+        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        if (user.size == 0) {
+            return "";
+        }
+        res = uint2str(user.entities[0].withdrawn);
+        for (uint8 i = 1; i < user.size; i++) {
+            res = string(abi.encodePacked(res, SEPARATOR, uint2str(user.entities[i].withdrawn)));
+        }
+    }
+
     function pendingReward(
         uint32 _poolId,
         address addr,
@@ -107,7 +177,7 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
     ) public view returns (bool) {
         require(_poolId < pools.length, "wrong id");
         LPStakeEntity memory entity = userInfo[_poolId][addr].entities[uint8(_index)];
-        return (entity.startTimestamp + withdrawTimeout < block.timestamp);
+        return (entity.creationTime + withdrawTimeout < block.timestamp);
     }
 
     function taxOfEntity(
@@ -117,7 +187,7 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
     ) public view returns (uint256) {
         require(_poolId < pools.length, "wrong id");
         LPStakeEntity memory entity = userInfo[_poolId][addr].entities[uint8(_index)];
-        uint256 durationSinceStart = block.timestamp - entity.startTimestamp;
+        uint256 durationSinceStart = block.timestamp - entity.creationTime;
         for (uint256 i = withdrawTaxPortion.length - 1; i > 0; i--) {
             if (withdrawTaxLevel[i] <= durationSinceStart) {
                 return withdrawTaxPortion[i];
@@ -169,7 +239,8 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
         user.entities[uint8(user.size)] = LPStakeEntity({
             amount: _amount,
             rewardDebt: 0,
-            startTimestamp: block.timestamp
+            creationTime: block.timestamp,
+            withdrawn: 0
         });
         user.size = user.size + 1;
     }
@@ -210,6 +281,7 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
             user.entities[uint8(_index)] = user.entities[uint8(user.size)];
         } else {
             entity.amount = entity.amount - _amount;
+            entity.withdrawn = entity.withdrawn + _amount;
         }
     }
 
@@ -222,10 +294,28 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
         updatePool(_poolId);
         LPStakeEntity storage entity = user.entities[uint8(_index)];
         PoolInfo storage pool = pools[_poolId];
-        // todo: taxing
         uint256 reward = (entity.amount * pool.acc0xBPerShare) / ONE_LP - entity.rewardDebt;
         IERC20(token0xBAddress).transfer(sender, reward);
         entity.rewardDebt = entity.rewardDebt + reward;
+    }
+
+    function claimAllReward(uint32 _poolId) external {
+        require(_poolId < pools.length, "wrong id");
+        address sender = msg.sender;
+        UserLPStakeInfo storage user = userInfo[_poolId][sender];
+        updatePool(_poolId);
+        PoolInfo storage pool = pools[_poolId];
+
+        uint256 totalReward = 0;
+        uint256 reward;
+
+        for (uint8 i = 0; i < user.size; i++) {
+            LPStakeEntity storage entity = user.entities[i];
+            reward = (entity.amount * pool.acc0xBPerShare) / ONE_LP - entity.rewardDebt;
+            totalReward += reward;
+            entity.rewardDebt = entity.rewardDebt + reward;
+        }
+        IERC20(token0xBAddress).transfer(sender, totalReward);
     }
 
     function updatePool(uint32 _poolId) public {
@@ -259,5 +349,27 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
 
     function isPoolActive(PoolInfo memory _pi) internal view returns (bool) {
         return (isPoolClaimable(_pi) && block.timestamp <= _pi.startTime + _pi.duration);
+    }
+
+    function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
+        if (_i == 0) {
+            return "0";
+        }
+        uint256 j = _i;
+        uint256 len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(len);
+        uint256 k = len;
+        while (_i != 0) {
+            k = k - 1;
+            uint8 temp = (48 + uint8(_i - (_i / 10) * 10));
+            bytes1 b1 = bytes1(temp);
+            bstr[k] = b1;
+            _i /= 10;
+        }
+        return string(bstr);
     }
 }
