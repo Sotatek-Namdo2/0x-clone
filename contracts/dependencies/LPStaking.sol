@@ -209,6 +209,7 @@ contract LPStaking is Initializable, PaymentSplitterUpgradeable {
         uint256 _duration
     ) external onlyAuthorities {
         require(_startTime >= block.timestamp, "start time should be in the future");
+        IERC20(token0xBAddress).transferFrom(msg.sender, address(this), _totalDistribute);
         pools.push(
             PoolInfo({
                 lpToken: IERC20(_token),
