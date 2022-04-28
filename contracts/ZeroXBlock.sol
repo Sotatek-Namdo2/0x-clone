@@ -315,7 +315,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         targetToken.transferFrom(sender, address(_liqRouter), amountIn);
         uint256 fee;
         (, fee) = _liqRouter.swapExactTokenFor0xB(sender, tokenAddr, amountIn, amountOutMin, block.timestamp + wait);
-        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
+        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, tokenAddr, fee);
     }
 
     function swapTokenForExact0xB(
@@ -330,7 +330,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         targetToken.transferFrom(sender, address(_liqRouter), amountInMax);
         uint256 fee;
         (, fee) = _liqRouter.swapTokenForExact0xB(sender, tokenAddr, amountOut, amountInMax, block.timestamp + wait);
-        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
+        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, tokenAddr, fee);
     }
 
     function swapExactAVAXFor0xB(uint256 amountOutMin, uint256 wait) external payable {
@@ -338,7 +338,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 amountIn = msg.value;
         uint256 fee;
         (, fee) = _liqRouter.swapExactAVAXFor0xB{ value: amountIn }(sender, amountOutMin, block.timestamp + wait);
-        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
+        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, uniswapV2Router.WAVAX(), fee);
     }
 
     function swapAVAXForExact0xB(
@@ -350,7 +350,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(msg.value >= amountInMax, "SWAP: msg.value less than slippage");
         uint256 fee;
         (, fee) = _liqRouter.swapAVAXForExact0xB{ value: msg.value }(sender, amountOut, block.timestamp + wait);
-        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
+        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, uniswapV2Router.WAVAX(), fee);
     }
 
     function mintConts(string[] memory names, ContType _cType) external {
