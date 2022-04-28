@@ -338,7 +338,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 amountIn = msg.value;
         uint256 fee;
         (, fee) = _liqRouter.swapExactAVAXFor0xB{ value: amountIn }(sender, amountOutMin, block.timestamp + wait);
-        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, uniswapV2Router.WAVAX(), fee);
+        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, _liqRouter.wrappedNative(), fee);
     }
 
     function swapAVAXForExact0xB(
@@ -350,7 +350,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         require(msg.value >= amountInMax, "SWAP: msg.value less than slippage");
         uint256 fee;
         (, fee) = _liqRouter.swapAVAXForExact0xB{ value: msg.value }(sender, amountOut, block.timestamp + wait);
-        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, uniswapV2Router.WAVAX(), fee);
+        emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, _liqRouter.wrappedNative(), fee);
     }
 
     function mintConts(string[] memory names, ContType _cType) external {
