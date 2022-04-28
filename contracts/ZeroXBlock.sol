@@ -38,12 +38,12 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
 
     uint256 public cashoutFee;
 
-    // ***** Storage for swapping *****
+    // ***** Storage for mint auto-swapping *****
     bool public enableAutoSwapTreasury;
     bool public enableAutoSwapDevFund;
     address public usdcToken;
 
-    // ***** Anti-bot *****
+    // ***** (Deprecated/Removed) Anti-bot *****
     bool public antiBotEnabled;
     uint256 public launchBuyLimit;
     uint256 public launchBuyTimeout;
@@ -52,7 +52,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     // ***** Blacklist storage *****
     mapping(address => bool) public _isBlacklisted;
 
-    // ***** Market makers pairs *****
+    // ***** (Deprecated/Removed) Market makers pairs *****
     mapping(address => bool) public automatedMarketMakerPairs;
 
     // ***** Enable Cashout *****
@@ -130,54 +130,98 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     }
 
     // ***** WRITE functions for admin *****
+    /**
+        @notice set address of usdc
+        @param newAddress new usdc address
+    */
     function setUSDCAddress(address newAddress) external onlyOwner {
         require(newAddress != address(0), "NEW_USDC: zero addr");
         usdcToken = newAddress;
     }
 
+    /**
+        @notice set if user can cashout
+        @param _enableCashout true if user can cashout after this tx. false if otherwise
+    */
     function setEnableCashout(bool _enableCashout) external onlyOwner {
         enableCashout = _enableCashout;
     }
 
+    /**
+        @notice set if user can mint new contract
+        @param value true if user can mint new contracts
+    */
     function setEnableMintConts(bool value) external onlyOwner {
         enableMintConts = value;
     }
 
+    /**
+        @notice set new address of ContRewardManager
+        @param crm address of the new CRM
+    */
     function setContManagement(address crm) external onlyOwner {
         require(crm != address(0), "NEW_CRM: zero addr");
         _crm = CONTRewardManagement(crm);
     }
 
+    /**
+        @notice set new address of LiquidityRouter
+        @param liqRouter new address of LiquidityRouter
+    */
     function setLiquidityRouter(address payable liqRouter) external onlyOwner {
         require(liqRouter != address(0), "NEW_LROUTER: zero addr");
         _liqRouter = LiquidityRouter(liqRouter);
     }
 
+    /**
+        @notice set new pool to send cashout tax to
+        @param wall new target address for cashout tax
+    */
     function updateCashoutTaxPool(address payable wall) external onlyOwner {
         require(wall != address(0), "UPD_WALL: zero addr");
         cashoutTaxPool = wall;
     }
 
+    /**
+        @notice set new wallet for development/marketing team
+        @param wall new wallet address
+    */
     function updateDevelopmentFundWallet(address payable wall) external onlyOwner {
         require(wall != address(0), "UPD_WALL: zero addr");
         developmentFundPool = wall;
     }
 
+    /**
+        @notice set new wallet for liquidity temporary pool
+        @param wall new wallet address
+    */
     function updateLiquidityWallet(address payable wall) external onlyOwner {
         require(wall != address(0), "UPD_WALL: zero addr");
         liquidityPool = wall;
     }
 
+    /**
+        @notice set new wallet for rewards
+        @param wall new wallet address
+    */
     function updateRewardsWallet(address payable wall) external onlyOwner {
         require(wall != address(0), "UPD_WALL: zero addr");
         rewardsPool = wall;
     }
 
+    /**
+        @notice set new wallet for treasury
+        @param wall new wallet address
+    */
     function updateTreasuryWallet(address payable wall) external onlyOwner {
         require(wall != address(0), "UPD_WALL: zero addr");
         treasuryPool = wall;
     }
 
+    /**
+        @notice set percentage of contract mint to be sent to rewards pool
+        @param value new percentage (100 = 100%)
+    */
     function updateRewardsFee(uint256 value) external onlyOwner {
         uint256 newTotalFee = liquidityPoolFee + developmentFee + treasuryFee + value;
         require(newTotalFee <= 100, "FEES: total exceeding 100%");
@@ -185,6 +229,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         totalFees = newTotalFee;
     }
 
+    /**
+        @notice set percentage of contract mint to be sent to liquidity
+        @param value new percentage (100 = 100%)
+    */
     function updateLiquidityFee(uint256 value) external onlyOwner {
         uint256 newTotalFee = rewardsFee + developmentFee + treasuryFee + value;
         require(newTotalFee <= 100, "FEES: total exceeding 100%");
@@ -192,6 +240,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         totalFees = newTotalFee;
     }
 
+    /**
+        @notice set percentage of contract mint to be sent to dev/marketing pool
+        @param value new percentage (100 = 100%)
+    */
     function updateDevelopmentFee(uint256 value) external onlyOwner {
         uint256 newTotalFee = rewardsFee + liquidityPoolFee + treasuryFee + value;
         require(newTotalFee <= 100, "FEES: total exceeding 100%");
@@ -199,6 +251,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         totalFees = newTotalFee;
     }
 
+    /**
+        @notice set percentage of contract mint to be sent to treasury pool
+        @param value new percentage (100 = 100%)
+    */
     function updateTreasuryFee(uint256 value) external onlyOwner {
         uint256 newTotalFee = rewardsFee + liquidityPoolFee + developmentFee + value;
         require(newTotalFee <= 100, "FEES: total exceeding 100%");
@@ -206,34 +262,50 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         totalFees = newTotalFee;
     }
 
+    /**
+        @notice set percentage of contract mint to be sent to cashout wallet
+        @param value new percentage (100 = 100%)
+    */
     function updateCashoutFee(uint256 value) external onlyOwner {
         require(value <= 100, "FEES: cashout exceeding 100%");
         cashoutFee = value;
     }
 
+    /**
+        @notice blacklist/un-blacklist an account
+        @param account account to change status
+        @param value set to true if blacklisting
+    */
     function setBlacklistStatus(address account, bool value) external onlyOwner {
         _isBlacklisted[account] = value;
     }
 
+    /**
+        @notice change autoswap mode for treasury
+        @param newVal set to true if enable treasury autoswap
+    */
     function changeEnableAutoSwapTreasury(bool newVal) external onlyOwner {
         enableAutoSwapTreasury = newVal;
     }
 
+    /**
+        @notice change autoswap mode for dev/fund wallet
+        @param newVal set to true if enable dev/fund autoswap
+    */
     function changeEnableAutoSwapDevFund(bool newVal) external onlyOwner {
         enableAutoSwapDevFund = newVal;
     }
 
+    /**
+        @notice change autoswap mode for cashout
+        @param newVal set to true if enable cashout autoswap
+    */
     function changeEnableAutoSwapCashout(bool newVal) external onlyOwner {
         enableAutoSwapCashout = newVal;
     }
 
-    function rescueMissentToken(address userAddr, uint256 tokens) external onlyOwner {
-        require(tokens <= balanceOf(address(this)), "SAVE_MISSENT: tokens exceed addr balance");
-        require(userAddr != address(0), "SAVE_MISSENT: zero_address");
-        _transfer(address(this), userAddr, tokens);
-    }
-
     // ***** Private helpers functions *****
+    /// @notice override ERC-20 transfer function to check blacklisted address and prevent malicious actions
     function _transfer(
         address from,
         address to,
@@ -248,6 +320,8 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     // amount send will be in 0xB. Will be converted if target token is in other tokens
     // Emit Funded.
     // ** not yet supported to fund from cashout or swaps
+    /// @notice fund 0xB functionality wallets
+    /// @dev helper function to emit "Funded" event from contract whenever user actions fund admin's wallets
     function _fund(
         address sender,
         address targetWalletAddress,
@@ -266,6 +340,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         }
     }
 
+    /// @notice return a string according to wallet name
     function _walletName(address addr) public view returns (string memory) {
         if (addr == rewardsPool) return "rewards";
         if (addr == developmentFundPool) return "devfund";
@@ -275,6 +350,13 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     }
 
     // ***** WRITE functions for public *****
+    /**
+        @notice swap from an exact 0xB amount to an ERC20 tokens
+        @param tokenAddr output token
+        @param amountIn an exact amount of input 0xB
+        @param amountOutMin a minimum expected output. Will raise error if can't satisfy.
+        @param wait maximum wait time
+    */
     function swapExact0xBForToken(
         address tokenAddr,
         uint256 amountIn,
@@ -289,6 +371,13 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
     }
 
+    /**
+        @notice swap from an exact 0xB amount to an ERC20 tokens
+        @param tokenAddr output token
+        @param amountOut an exact amount of output token
+        @param amountInMax a maximum expected input. Will raise error if can't satisfy.
+        @param wait maximum wait time
+    */
     function swap0xBForExactToken(
         address tokenAddr,
         uint256 amountOut,
@@ -303,6 +392,13 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, address(this), fee);
     }
 
+    /**
+        @notice swap from an exact amount of erc20 token to 0xB
+        @param tokenAddr input token
+        @param amountIn an exact amount of input token
+        @param amountOutMin a minimum expected output 0xB. Will raise error if can't satisfy.
+        @param wait maximum wait time
+    */
     function swapExactTokenFor0xB(
         address tokenAddr,
         uint256 amountIn,
@@ -318,6 +414,13 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, tokenAddr, fee);
     }
 
+    /**
+        @notice swap from an erc20 token to exact amount of 0xB
+        @param tokenAddr input token
+        @param amountOut an exact amount of output 0xB
+        @param amountInMax a maximum expected amount of input token. Will raise error if can't satisfy.
+        @param wait maximum wait time
+    */
     function swapTokenForExact0xB(
         address tokenAddr,
         uint256 amountOut,
@@ -333,6 +436,12 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, tokenAddr, fee);
     }
 
+    /**
+        @notice swap from an exact 0xB amount to an ERC20 tokens
+        @dev set msg.value as the exact input amount of AVAX
+        @param amountOutMin a minimum expected output. Will raise error if can't satisfy.
+        @param wait maximum wait time
+    */
     function swapExactAVAXFor0xB(uint256 amountOutMin, uint256 wait) external payable {
         address sender = msg.sender;
         uint256 amountIn = msg.value;
@@ -341,6 +450,13 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, _liqRouter.wrappedNative(), fee);
     }
 
+    /**
+        @notice swap from an exact 0xB amount to an ERC20 tokens
+        @dev set msg.value as the maximum expected input amount of AVAX
+        @param amountOut an exact amount of output 0xB.
+        @param amountInMax set same as msg.value
+        @param wait maximum wait time
+    */
     function swapAVAXForExact0xB(
         uint256 amountOut,
         uint256 amountInMax,
@@ -353,6 +469,13 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         emit Funded(_walletName(_liqRouter.swapTaxPool()), ContType.Other, _liqRouter.wrappedNative(), fee);
     }
 
+    /**
+        @notice mint new contracts
+        @dev create new contract instances, take funds from user and distribute to admin wallets according to 
+        SC configs.
+        @param names list of names. The number of string in this list will be the count of new contracts.
+        @param _cType type of new contracts.
+    */
     function mintConts(string[] memory names, ContType _cType) external {
         require(enableMintConts, "CONTMINT: mint conts disabled");
         require(names.length <= mintContLimit, "CONTMINT: too many conts");
@@ -407,6 +530,11 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         emit ContsMinted(sender, _cType, names.length);
     }
 
+    /**
+        @notice cashout reward from a single contract
+        @dev send rewards from reward wallet to user and the tax portion to the configured cashoutTax wallet.
+        @param _contIndex index of contract in list of contract of user
+    */
     function cashoutReward(uint256 _contIndex) external {
         address sender = _msgSender();
         require(enableCashout == true, "CSHT: Cashout Disabled");
@@ -436,6 +564,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         emit RewardCashoutOne(sender, _contIndex, rewardAmount, _cType);
     }
 
+    /**
+        @notice cashout reward from all contracts
+        @dev send rewards from reward wallet to user and the tax portion to the configured cashoutTax wallet.
+    */
     function cashoutAll() external {
         address sender = _msgSender();
         require(enableCashout == true, "CSHTALL: cashout disabled");
