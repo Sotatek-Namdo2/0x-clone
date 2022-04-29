@@ -316,7 +316,7 @@ contract Zap is OwnableUpgradeable {
         // get pair of two token
         address factory = protocols[_type].factory;
 
-        address pair = IUniswapV2Factory(factory).getPair(_from, _to);
+        address pair = IJoeFactory(factory).getPair(_from, _to);
         address[] memory path;
 
         if (pair != address(0)) {
@@ -378,7 +378,7 @@ contract Zap is OwnableUpgradeable {
         address _token0,
         address _token1
     ) private view returns (bool) {
-        return IUniswapV2Factory(_factory).getPair(_token0, _token1) != address(0);
+        return IJoeFactory(_factory).getPair(_token0, _token1) != address(0);
     }
 
     /// @notice transfer excess balance to user, when user call zap func
