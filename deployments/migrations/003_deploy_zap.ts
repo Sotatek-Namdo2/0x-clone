@@ -8,7 +8,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const usdcToken = process.env.USDC_TOKEN_ADDRESS;
   const usdtToken = process.env.USDC_TOKEN_ADDRESS || process.env.USDC_TOKEN_ADDRESS;
   const wrappedNative = process.env.WRAPPED_NATIVE;
-  const OxBlockToken = process.env.OXBLOCK_TOKEN_ADDRESS;
 
   await deploy("Zap", {
     from: deployer,
@@ -23,23 +22,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       },
     },
     log: true,
-  });
-
-  await deploy("Zap", {
-    from: deployer,
-    log: true,
-    proxy: {
-      proxyContract: "OptimizedTransparentProxy",
-      execute: {
-        methodName: "initialize",
-        args: [
-          usdtToken, //usdt
-          wrappedNative, // wrap native token
-          usdcToken, // usdc
-          OxBlockToken, // 0block
-        ],
-      },
-    },
   });
 };
 

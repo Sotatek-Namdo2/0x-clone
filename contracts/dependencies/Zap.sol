@@ -35,10 +35,10 @@ contract Zap is OwnableUpgradeable {
 
     /* ========== CONSTANT VARIABLES ========== */
 
-    address public USDT;
-    address public WNATIVE;
-    address public USDC;
-    address public OxBlock;
+    address public usdtToken;
+    address public wrappedNative;
+    address public usdcToken;
+    address public zeroXBlockToken;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -51,18 +51,18 @@ contract Zap is OwnableUpgradeable {
     /* ========== INITIALIZER ========== */
 
     function initialize(
-        address _USDT,
-        address _WNATIVE,
-        address _USDC,
-        address _OxBlock
+        address _usdtToken,
+        address _wrappedNative,
+        address _usdcToken,
+        address _zeroXBlockToken
     ) external initializer {
         __Ownable_init();
         require(owner() != address(0), "Zap: owner must be set");
 
-        USDC = _USDC;
-        USDT = _USDT;
-        WNATIVE = _WNATIVE;
-        OxBlock = _OxBlock;
+        usdcToken = _usdcToken;
+        usdtToken = _usdtToken;
+        wrappedNative = _wrappedNative;
+        zeroXBlockToken = _zeroXBlockToken;
     }
 
     // solhint-disable-next-line
@@ -114,7 +114,7 @@ contract Zap is OwnableUpgradeable {
         _transferExcessBalance(token1, msg.sender);
         _receiver.transfer(excessNative);
 
-        emit ZapIn(WNATIVE, _to, msg.value, _type);
+        emit ZapIn(wrappedNative, _to, msg.value, _type);
     }
 
     // @notice zap out LP to token
@@ -176,6 +176,20 @@ contract Zap is OwnableUpgradeable {
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
+    function setToken(address token_) external onlyOwner {
+        require(token_ != address(0), "zero address");
+        zeroXBlockToken = token_;
+    }
+
+    function changeUSDCAddress(address token_) external onlyOwner {
+        require(token_ != address(0), "zero address");
+        usdcToken = token_;
+    }
+
+    function changeUSDTAddress(address token_) external onlyOwner {
+        require(token_ != address(0), "zero address");
+        usdtToken = token_;
+    }
 
     /// @notice withdraw token that contract hold
     /// @param _token token address
@@ -218,8 +232,8 @@ contract Zap is OwnableUpgradeable {
         address router = protocols[_type].router;
         address token0 = pair.token0();
         address token1 = pair.token1();
-        if (token0 == WNATIVE || token1 == WNATIVE) {
-            address token = token0 == WNATIVE ? token1 : token0;
+        if (token0 == wrappedNative || token1 == wrappedNative) {
+            address token = token0 == wrappedNative ? token1 : token0;
             uint256 swapValue = _amount / 2;
             uint256 tokenAmount = _swapETHForToken(_type, token, swapValue, address(this));
 
@@ -288,7 +302,7 @@ contract Zap is OwnableUpgradeable {
         address[] memory path;
 
         path = new address[](2);
-        path[0] = WNATIVE;
+        path[0] = wrappedNative;
         path[1] = _token;
 
         uint256[] memory amounts = IJoeRouter02(protocols[_type].router).swapExactAVAXForTokens{ value: _value }(
@@ -328,14 +342,14 @@ contract Zap is OwnableUpgradeable {
             path[0] = _from;
             path[2] = _to;
 
-            if (_hasPair(factory, _from, WNATIVE) && _hasPair(factory, WNATIVE, _to)) {
-                path[1] = WNATIVE;
-            } else if (_hasPair(factory, _from, USDC) && _hasPair(factory, USDC, _to)) {
-                path[1] = USDC;
-            } else if (_hasPair(factory, _from, USDT) && _hasPair(factory, USDT, _to)) {
-                path[1] = USDT;
-            } else if (_hasPair(factory, _from, OxBlock) && _hasPair(factory, OxBlock, _to)) {
-                path[1] = OxBlock;
+            if (_hasPair(factory, _from, wrappedNative) && _hasPair(factory, wrappedNative, _to)) {
+                path[1] = wrappedNative;
+            } else if (_hasPair(factory, _from, usdcToken) && _hasPair(factory, usdcToken, _to)) {
+                path[1] = usdcToken;
+            } else if (_hasPair(factory, _from, usdtToken) && _hasPair(factory, usdtToken, _to)) {
+                path[1] = usdtToken;
+            } else if (_hasPair(factory, _from, zeroXBlockToken) && _hasPair(factory, zeroXBlockToken, _to)) {
+                path[1] = zeroXBlockToken;
             } else {
                 revert("ZAP: NEP"); // not exist path
             }

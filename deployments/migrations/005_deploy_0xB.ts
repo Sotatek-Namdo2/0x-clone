@@ -65,22 +65,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   await execute("LPStaking", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
   await execute("ZeroXBlock", { from: deployer, log: true }, "setContManagement", CONTRewardManagement.address);
   await execute("ZeroXBlock", { from: deployer, log: true }, "setLiquidityRouter", LiquidityRouter.address);
-
-  // const poolAddress = await read("LiquidityRouter", "uniswapV2Pair");
-  // const poolCount = await read("LPStaking", "pools");
-  // const timestamp = new Date().getTime() / 1000;
-
-  // if (poolCount == 0) {
-  //   await execute(
-  //     "LPStaking",
-  //     { from: deployer, log: true },
-  //     "addPool",
-  //     poolAddress,
-  //     BigNumber.from("20000000000000000000"),
-  //     timestamp + 300,
-  //     86400 * 7
-  //   );
-  // }
 };
 
 func.tags = ["ZeroXBlock"];

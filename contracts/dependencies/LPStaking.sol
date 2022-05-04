@@ -22,11 +22,12 @@ contract LPStaking is Initializable {
     }
 
     struct UserLPStakeInfo {
-        uint256 size;
+        uint8 size;
         mapping(uint8 => LPStakeEntity) entities;
     }
 
     struct PoolInfo {
+        string name;
         IERC20 lpToken;
         uint256 lpAmountInPool;
         uint256 totalDistribute;
@@ -46,7 +47,7 @@ contract LPStaking is Initializable {
     address public earlyWithdrawTaxPool;
 
     PoolInfo[] public pools;
-    mapping(uint32 => mapping(address => UserLPStakeInfo)) private userInfo;
+    mapping(uint32 => mapping(address => UserLPStakeInfo)) public userInfo;
     mapping(address => bool) private whitelistAuthorities;
 
     // ----- Router Addresses -----
@@ -75,6 +76,14 @@ contract LPStaking is Initializable {
     }
 
     // ----- External READ functions -----
+    /**
+        @notice number of pools 
+        @return len number of pools
+    */
+    function getPoolsCount() public view returns (uint256) {
+        return pools.length;
+    }
+
     /**
         @notice calculate the current APR of one LP pool
         @param _poolId index of pool
@@ -203,8 +212,8 @@ contract LPStaking is Initializable {
         uint256 acc0xBPerShare = pool.acc0xBPerShare;
         uint256 lpSupply = pool.lpAmountInPool;
         if (block.timestamp > pool.lastRewardTimestamp && lpSupply != 0) {
-            uint256 reward = 0;
-            acc0xBPerShare = ((acc0xBPerShare + reward) * ONE_LP) / lpSupply;
+            uint256 reward = getDelta(pool.lastRewardTimestamp, block.timestamp) * getCurrentRewardPerLPPerSecond(pool);
+            acc0xBPerShare = acc0xBPerShare + (reward * ONE_LP) / lpSupply;
         }
         return (entity.amount * acc0xBPerShare) / ONE_LP - entity.rewardDebt;
     }
@@ -276,6 +285,7 @@ contract LPStaking is Initializable {
         @param _duration duration of pool
     */
     function addPool(
+        string memory _name,
         address _token,
         uint256 _totalDistribute,
         uint256 _startTime,
@@ -285,6 +295,7 @@ contract LPStaking is Initializable {
         IERC20(token0xBAddress).transferFrom(msg.sender, address(this), _totalDistribute);
         pools.push(
             PoolInfo({
+                name: _name,
                 lpToken: IERC20(_token),
                 totalDistribute: _totalDistribute,
                 startTime: _startTime,
@@ -333,7 +344,7 @@ contract LPStaking is Initializable {
     function withdraw(
         uint32 _poolId,
         uint32 _index,
-        uint32 _amount
+        uint256 _amount
     ) external {
         require(_poolId < pools.length, "wrong id");
         require(_amount > 0, "please unstake");
@@ -361,13 +372,74 @@ contract LPStaking is Initializable {
         pool.lpAmountInPool = pool.lpAmountInPool - _amount;
 
         // swap from last place to current entity
-        if (_amount == entity.amount) {
+        entity.amount = entity.amount - _amount;
+        entity.withdrawn = entity.withdrawn + _amount;
+        if (entity.amount == 0) {
             user.size = user.size - 1;
             user.entities[uint8(_index)] = user.entities[uint8(user.size)];
-        } else {
+        }
+    }
+
+    /**
+        @notice withdraw an amount from an entity. remove the entity if withdrawn everything
+        @dev same as withdraw, relocations of entities from an user is required
+        @param _poolId index of pool
+        @param _entityIndices indices of entities to withdraw
+    */
+    function withdrawMultiple(uint32 _poolId, uint8[] memory _entityIndices) external {
+        require(_poolId < pools.length, "wrong id");
+        for (uint256 i = 0; i < _entityIndices.length; i++) {
+            require(withdrawable(_poolId, msg.sender, _entityIndices[i]), "entity in withdrawal timeout");
+            require(_entityIndices[i] < userInfo[_poolId][msg.sender].size, "wrong index");
+        }
+        address sender = msg.sender;
+
+        UserLPStakeInfo storage user = userInfo[_poolId][sender];
+        updatePool(_poolId);
+        PoolInfo storage pool = pools[_poolId];
+        uint256 totalPendingReward = 0;
+        uint256 totalTax = 0;
+        uint256 totalWithdrawn = 0;
+        uint256 newReward;
+        uint256 _amount;
+
+        for (uint256 i = 0; i < _entityIndices.length; i++) {
+            LPStakeEntity storage entity = user.entities[_entityIndices[i]];
+            _amount = entity.amount;
+            newReward = (entity.amount * pool.acc0xBPerShare) / ONE_LP - entity.rewardDebt;
+            totalPendingReward += newReward;
+            totalTax += (_amount * taxOfEntity(_poolId, sender, _entityIndices[i])) / HUNDRED_PERCENT;
+            totalWithdrawn += _amount;
+            entity.rewardDebt = entity.rewardDebt + newReward;
             entity.amount = entity.amount - _amount;
             entity.withdrawn = entity.withdrawn + _amount;
         }
+
+        // transfer reward
+        IERC20(token0xBAddress).transfer(sender, totalPendingReward);
+
+        // transfer lp tokens
+        pool.lpToken.transferFrom(address(this), earlyWithdrawTaxPool, totalTax);
+        pool.lpToken.transferFrom(address(this), sender, totalWithdrawn - totalTax);
+        pool.lpAmountInPool = pool.lpAmountInPool - totalWithdrawn;
+
+        // refactor user storage using O(n) two-pointer algorithm
+        uint8 ptrLeft = 0;
+        uint8 ptrRight = user.size - 1;
+        while (true) {
+            while (ptrLeft < user.size && user.entities[ptrLeft].amount > 0) {
+                ptrLeft++;
+            }
+            while (user.entities[ptrRight].amount == 0) {
+                if (ptrRight == 0) break;
+                ptrRight--;
+            }
+            if (ptrLeft >= ptrRight) break;
+            user.entities[ptrLeft] = user.entities[ptrRight];
+            ptrLeft++;
+            ptrRight--;
+        }
+        user.size = (user.entities[ptrRight].amount == 0) ? 0 : ptrRight + 1;
     }
 
     /**
