@@ -512,13 +512,14 @@ contract LPStaking is Initializable {
         IERC20(token0xBAddress).transfer(sender, totalPendingReward);
 
         // transfer lp tokens
-        pool.lpToken.transferFrom(address(this), earlyWithdrawTaxPool, totalTax);
-        pool.lpToken.transferFrom(address(this), sender, totalWithdrawn - totalTax);
+        pool.lpToken.transfer(earlyWithdrawTaxPool, totalTax);
+        pool.lpToken.transfer(sender, totalWithdrawn - totalTax);
         pool.lpAmountInPool = pool.lpAmountInPool - totalWithdrawn;
 
         // refactor user storage using O(n) two-pointer algorithm
         uint8 ptrLeft = 0;
         uint8 ptrRight = user.size - 1;
+        LPStakeEntity memory _entity;
         while (true) {
             while (ptrLeft < user.size && user.entities[ptrLeft].amount > 0) {
                 ptrLeft++;
@@ -528,7 +529,8 @@ contract LPStaking is Initializable {
                 ptrRight--;
             }
             if (ptrLeft >= ptrRight) break;
-            user.entities[ptrLeft] = user.entities[ptrRight];
+            _entity = user.entities[ptrRight];
+            user.entities[ptrLeft] = _entity;
             ptrLeft++;
             ptrRight--;
         }
