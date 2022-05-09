@@ -46,8 +46,8 @@ contract LPStaking is Initializable {
     uint256[] public withdrawTaxPortion;
     address public earlyWithdrawTaxPool;
 
-    PoolInfo[] private pools;
-    mapping(uint32 => mapping(address => UserLPStakeInfo)) private userInfo;
+    PoolInfo[] public pools;
+    mapping(uint32 => mapping(address => UserLPStakeInfo)) public userInfo;
     mapping(address => bool) private whitelistAuthorities;
 
     // ----- Router Addresses -----
@@ -81,7 +81,7 @@ contract LPStaking is Initializable {
         @param _poolId index of pool
         @return res JSON
     */
-    // solhint-disable
+    /* solhint-disable */
     function getJSONSinglePoolInfo(uint32 _poolId) public view returns (string memory res) {
         require(_poolId < pools.length, "wrong pool id");
         PoolInfo memory pool = pools[_poolId];
@@ -143,6 +143,8 @@ contract LPStaking is Initializable {
         }
         res = string(abi.encodePacked(res, '"user":""}'));
     }
+
+    /* solhint-enable */
 
     /**
         @notice number of pools 
@@ -370,6 +372,12 @@ contract LPStaking is Initializable {
         earlyWithdrawTaxPool = _pool;
     }
 
+    // todo: add comment
+    function setLPStakingEntitiesLimit(uint256 newLimit) external onlyAuthorities {
+        require(newLimit > 0, "limit must be positive");
+        lpStakingEntitiesLimit = newLimit;
+    }
+
     /**
         @notice add new pool to stake LP
         @param _token address of LP token
@@ -403,7 +411,8 @@ contract LPStaking is Initializable {
     // ----- Public WRITE functions -----
     /**
         @notice deposit _amount of lp to the pool with index _poolId to start new entity of staking
-        @dev add new entity to control staking timestamp and taxes, never add token to older entities
+        @dev add new entity to control staking timestamp and taxes, never add token to older entities.
+        Set rewardDebt to amount of reward currently.
         @param _poolId index of one pool
         @param _amount amount to stake
     */
@@ -420,58 +429,12 @@ contract LPStaking is Initializable {
         pool.lpAmountInPool = pool.lpAmountInPool + _amount;
         user.entities[uint8(user.size)] = LPStakeEntity({
             amount: _amount,
-            rewardDebt: 0,
+            rewardDebt: (_amount * pool.acc0xBPerShare) / ONE_LP,
             creationTime: block.timestamp,
             withdrawn: 0
         });
         user.size = user.size + 1;
     }
-
-    // /**
-    //     @notice withdraw an amount from an entity. remove the entity if withdrawn everything
-    //     @dev reduce amount in pool and increase the withdrawn value
-    //     @param _poolId index of pool
-    //     @param _index index of entity
-    //     @param _amount amount to withdraw
-    // */
-    // function withdraw(
-    //     uint32 _poolId,
-    //     uint32 _index,
-    //     uint256 _amount
-    // ) external {
-    //     require(_poolId < pools.length, "wrong id");
-    //     require(_amount > 0, "please unstake");
-    //     require(withdrawable(_poolId, msg.sender, _index), "entity in withdrawal timeout");
-    //     address sender = msg.sender;
-    //     UserLPStakeInfo storage user = userInfo[_poolId][sender];
-    //     require(_index < user.size, "wrong index");
-    //     require(_amount <= user.entities[uint8(_index)].amount, "amount too big");
-
-    //     updatePool(_poolId);
-    //     PoolInfo storage pool = pools[_poolId];
-    //     LPStakeEntity storage entity = user.entities[uint8(_index)];
-
-    //     // transfer 0xB reward
-    //     uint256 reward = (entity.amount * pool.acc0xBPerShare) / ONE_LP - entity.rewardDebt;
-    //     IERC20(token0xBAddress).transfer(sender, reward);
-    //     entity.rewardDebt = entity.rewardDebt + reward;
-
-    //     uint256 tax = taxOfEntity(_poolId, sender, _index);
-    //     if (tax > 0) {
-    //         tax = (tax * _amount) / HUNDRED_PERCENT;
-    //         pool.lpToken.transferFrom(address(this), earlyWithdrawTaxPool, tax);
-    //     }
-    //     pool.lpToken.transferFrom(address(this), address(msg.sender), _amount - tax);
-    //     pool.lpAmountInPool = pool.lpAmountInPool - _amount;
-
-    //     // swap from last place to current entity
-    //     entity.amount = entity.amount - _amount;
-    //     entity.withdrawn = entity.withdrawn + _amount;
-    //     if (entity.amount == 0) {
-    //         user.size = user.size - 1;
-    //         user.entities[uint8(_index)] = user.entities[uint8(user.size)];
-    //     }
-    // }
 
     /**
         @notice withdraw an amount from an entity. remove the entity if withdrawn everything
@@ -479,7 +442,7 @@ contract LPStaking is Initializable {
         @param _poolId index of pool
         @param _entityIndices indices of entities to withdraw
     */
-    function withdrawMultiple(uint32 _poolId, uint8[] memory _entityIndices) external {
+    function withdraw(uint32 _poolId, uint8[] memory _entityIndices) public {
         require(_poolId < pools.length, "wrong id");
         for (uint256 i = 0; i < _entityIndices.length; i++) {
             require(withdrawable(_poolId, msg.sender, _entityIndices[i]), "entity in withdrawal timeout");
@@ -537,33 +500,23 @@ contract LPStaking is Initializable {
         user.size = (user.entities[ptrRight].amount == 0) ? 0 : ptrRight + 1;
     }
 
-    // /**
-    //     @notice claim reward from a pool, with a chosen entity
-    //     @dev update reward debt of user and send new reward to user
-    //     @param _poolId index of pool
-    //     @param _index index of entity
-    //  */
-    // function claimReward(uint32 _poolId, uint32 _index) external {
-    //     require(_poolId < pools.length, "wrong id");
-    //     PoolInfo storage pool = pools[_poolId];
-    //     require(isPoolClaimable(pool), "pool has not started yet");
-    //     address sender = msg.sender;
-    //     UserLPStakeInfo storage user = userInfo[_poolId][sender];
-    //     require(_index < user.size, "wrong index");
-
-    //     updatePool(_poolId);
-    //     LPStakeEntity storage entity = user.entities[uint8(_index)];
-    //     uint256 reward = (entity.amount * pool.acc0xBPerShare) / ONE_LP - entity.rewardDebt;
-    //     IERC20(token0xBAddress).transfer(sender, reward);
-    //     entity.rewardDebt = entity.rewardDebt + reward;
-    // }
+    function withdrawAll(uint32 _poolId) external {
+        require(_poolId < pools.length, "wrong id");
+        UserLPStakeInfo storage user = userInfo[_poolId][msg.sender];
+        uint8[] memory indices = new uint8[](user.size);
+        for (uint8 i = 0; i < user.size; i++) {
+            require(withdrawable(_poolId, msg.sender, i), "entity in withdrawal timeout");
+            indices[i] = i;
+        }
+        withdraw(_poolId, indices);
+    }
 
     /**
         @notice claim all reward from all entity of pool
         @dev update reward debt and send reward to user
         @param _poolId index of pool
     */
-    function claimReward(uint32 _poolId, uint8[] memory _indices) external {
+    function claimReward(uint32 _poolId, uint8[] memory _indices) public {
         require(_poolId < pools.length, "wrong id");
         PoolInfo storage pool = pools[_poolId];
         require(isPoolClaimable(pool), "pool has not started yet");
@@ -582,6 +535,17 @@ contract LPStaking is Initializable {
             entity.rewardDebt = entity.rewardDebt + reward;
         }
         IERC20(token0xBAddress).transfer(sender, totalReward);
+    }
+
+    // todo: add comments
+    function claimAllReward(uint32 _poolId) external {
+        require(_poolId < pools.length, "wrong id");
+        UserLPStakeInfo storage user = userInfo[_poolId][msg.sender];
+        uint8[] memory indices = new uint8[](user.size);
+        for (uint8 i = 0; i < user.size; i++) {
+            indices[i] = i;
+        }
+        claimReward(_poolId, indices);
     }
 
     /**
