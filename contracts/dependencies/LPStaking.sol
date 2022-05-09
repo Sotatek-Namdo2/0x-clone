@@ -372,10 +372,13 @@ contract LPStaking is Initializable {
         earlyWithdrawTaxPool = _pool;
     }
 
-    // todo: add comment
-    function setLPStakingEntitiesLimit(uint256 newLimit) external onlyAuthorities {
-        require(newLimit > 0, "limit must be positive");
-        lpStakingEntitiesLimit = newLimit;
+    /**
+        @notice set new lpstaking entities limit
+        @param _newLimit new limit
+    */
+    function setLPStakingEntitiesLimit(uint256 _newLimit) external onlyAuthorities {
+        require(_newLimit > 0, "limit must be positive");
+        lpStakingEntitiesLimit = _newLimit;
     }
 
     /**
@@ -437,7 +440,7 @@ contract LPStaking is Initializable {
     }
 
     /**
-        @notice withdraw an amount from an entity. remove the entity if withdrawn everything
+        @notice withdraw all tokens from some entity.
         @dev same as withdraw, relocations of entities from an user is required
         @param _poolId index of pool
         @param _entityIndices indices of entities to withdraw
@@ -475,7 +478,7 @@ contract LPStaking is Initializable {
         IERC20(token0xBAddress).transfer(sender, totalPendingReward);
 
         // transfer lp tokens
-        pool.lpToken.transfer(earlyWithdrawTaxPool, totalTax);
+        (totalTax > 0) ? pool.lpToken.transfer(earlyWithdrawTaxPool, totalTax) : false;
         pool.lpToken.transfer(sender, totalWithdrawn - totalTax);
         pool.lpAmountInPool = pool.lpAmountInPool - totalWithdrawn;
 
@@ -500,6 +503,11 @@ contract LPStaking is Initializable {
         user.size = (user.entities[ptrRight].amount == 0) ? 0 : ptrRight + 1;
     }
 
+    /**
+        @notice withdraw all entities of an user.
+        @dev call withdraw() with second params being all withdraw.
+        @param _poolId index of pool
+    */
     function withdrawAll(uint32 _poolId) external {
         require(_poolId < pools.length, "wrong id");
         UserLPStakeInfo storage user = userInfo[_poolId][msg.sender];
@@ -512,9 +520,10 @@ contract LPStaking is Initializable {
     }
 
     /**
-        @notice claim all reward from all entity of pool
+        @notice claim all reward from some entities 
         @dev update reward debt and send reward to user
         @param _poolId index of pool
+        @param _indices indices of entities
     */
     function claimReward(uint32 _poolId, uint8[] memory _indices) public {
         require(_poolId < pools.length, "wrong id");
@@ -537,7 +546,11 @@ contract LPStaking is Initializable {
         IERC20(token0xBAddress).transfer(sender, totalReward);
     }
 
-    // todo: add comments
+    /**
+        @notice claim all reward from all entity of pool
+        @dev update reward debt and send reward to user
+        @param _poolId index of pool
+    */
     function claimAllReward(uint32 _poolId) external {
         require(_poolId < pools.length, "wrong id");
         UserLPStakeInfo storage user = userInfo[_poolId][msg.sender];
