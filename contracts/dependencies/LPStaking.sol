@@ -355,6 +355,18 @@ contract LPStaking is Initializable {
         token0xBAddress = _token;
     }
 
+    function setTaxLevels(uint256[] memory _newLevels) external onlyAuthorities {
+        require(_newLevels.length == 4, "please write 4 levels");
+        require(
+            _newLevels[0] == 0 &&
+                _newLevels[1] >= _newLevels[0] &&
+                _newLevels[2] >= _newLevels[1] &&
+                _newLevels[3] >= _newLevels[2],
+            "levels must be non-decreasing"
+        );
+        withdrawTaxLevel = _newLevels;
+    }
+
     /**
         @notice set new withdrawal timeout
         @param _timeout new timeout
