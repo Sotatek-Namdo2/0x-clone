@@ -6,30 +6,30 @@ import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "../interfaces/IJoeRouter02.sol";
 import "../interfaces/IJoeFactory.sol";
 
-contract LPStaking is Initializable {
+contract Staking is Initializable {
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
     uint256 private constant DAY = 86400;
     uint256 private constant YEAR = 86400 * 365;
-    uint256 private constant ONE_LP = 1e18;
+    uint256 private constant ETHER = 1e18;
     string private constant SEPARATOR = "#";
 
     // ----- Structs -----
-    struct LPStakeEntity {
+    struct StakeEntity {
         uint256 amount;
         uint256 rewardDebt;
         uint256 creationTime;
         uint256 withdrawn;
     }
 
-    struct UserLPStakeInfo {
+    struct UserStakeInfo {
         uint8 size;
-        mapping(uint8 => LPStakeEntity) entities;
+        mapping(uint8 => StakeEntity) entities;
     }
 
     struct PoolInfo {
         string name;
-        IERC20 lpToken;
-        uint256 lpAmountInPool;
+        IERC20 stakingToken;
+        uint256 stakedAmountInPool;
         uint256 totalDistribute;
         uint256 startTime;
         uint256 duration;
@@ -38,7 +38,7 @@ contract LPStaking is Initializable {
     }
 
     // ----- Contract Storage -----
-    uint256 public lpStakingEntitiesLimit;
+    uint256 public stakingRecordsLimitPerPool;
 
     // ----- Limits on withdrawal -----
     uint256 public withdrawTimeout;
@@ -47,7 +47,7 @@ contract LPStaking is Initializable {
     address public earlyWithdrawTaxPool;
 
     PoolInfo[] public pools;
-    mapping(uint32 => mapping(address => UserLPStakeInfo)) public userInfo;
+    mapping(uint32 => mapping(address => UserStakeInfo)) public userInfo;
     mapping(address => bool) private whitelistAuthorities;
 
     // ----- Router Addresses -----
@@ -57,9 +57,9 @@ contract LPStaking is Initializable {
     // ----- Constructor -----
     function initialize() public initializer {
         admin0xB = msg.sender;
-        lpStakingEntitiesLimit = 100;
+        stakingRecordsLimitPerPool = 100;
         withdrawTimeout = 0;
-        withdrawTaxLevel = [0, 0, DAY * 30, DAY * 60];
+        withdrawTaxLevel = [0, 0, DAY / 2, DAY];
         withdrawTaxPortion = [5_000_000, 5_000_000, 2_500_000, 0];
         earlyWithdrawTaxPool = msg.sender;
     }
@@ -86,9 +86,9 @@ contract LPStaking is Initializable {
         require(_poolId < pools.length, "wrong pool id");
         PoolInfo memory pool = pools[_poolId];
         res = string(abi.encodePacked('{"index":"', uint2str(_poolId), '","name":"'));
-        res = string(abi.encodePacked(res, pool.name, '","lpTokenAddress":"'));
-        res = string(abi.encodePacked(res, toAsciiString(address(pool.lpToken)), '","lpAmountInPool":"'));
-        res = string(abi.encodePacked(res, uint2str(pool.lpAmountInPool), '","totalDistribute":"'));
+        res = string(abi.encodePacked(res, pool.name, '","stakingTokenAddress":"'));
+        res = string(abi.encodePacked(res, toAsciiString(address(pool.stakingToken)), '","stakedAmountInPool":"'));
+        res = string(abi.encodePacked(res, uint2str(pool.stakedAmountInPool), '","totalDistribute":"'));
         res = string(abi.encodePacked(res, uint2str(pool.totalDistribute), '","startTime":"'));
         res = string(abi.encodePacked(res, uint2str(pool.startTime), '","duration":"'));
         res = string(abi.encodePacked(res, uint2str(pool.duration), '","acc0xBPerShare":"'));
@@ -155,25 +155,34 @@ contract LPStaking is Initializable {
     }
 
     /**
-        @notice calculate the current APR of one LP pool
+        @notice tax levels as a string
+        @return res levels of pools, separated by SEPARATOR
+    */
+    function getTaxLevels() public view returns (string memory res) {
+        res = "";
+        for (uint8 i = 0; i < 4; i++) res = string(abi.encodePacked(res, SEPARATOR, uint2str(withdrawTaxLevel[i])));
+    }
+
+    /**
+        @notice calculate the current APR of one pool
         @param _poolId index of pool
-        @return apr current APR of an LP pool
+        @return apr current APR of a pool
     */
     function getAPR(uint32 _poolId) public view returns (uint256 apr) {
         require(_poolId < pools.length, "wrong id");
         PoolInfo memory pool = pools[_poolId];
-        apr = (pool.totalDistribute * YEAR * uint256(1e18)) / pool.duration / pool.lpAmountInPool;
+        apr = (pool.totalDistribute * YEAR * ETHER) / pool.duration / pool.stakedAmountInPool;
     }
 
     /**
         @notice calculate total stake of one address in a pool
         @param _poolId index of pool
         @param addr address of the user
-        @return totalStake total amount of LP staked in the user
+        @return totalStake total amount of token staked in the user
     */
     function totalStakeOfUser(uint32 _poolId, address addr) public view returns (uint256 totalStake) {
         require(_poolId < pools.length, "wrong id");
-        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        UserStakeInfo storage user = userInfo[_poolId][addr];
         totalStake = 0;
         for (uint8 i = 1; i < user.size; i++) {
             totalStake += user.entities[i].amount;
@@ -189,7 +198,7 @@ contract LPStaking is Initializable {
     */
     function getUserTimestamps(uint32 _poolId, address addr) public view returns (string memory res, uint256 minTs) {
         require(_poolId < pools.length, "wrong id");
-        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        UserStakeInfo storage user = userInfo[_poolId][addr];
         minTs = 2**256 - 1;
         if (user.size == 0) {
             return ("", minTs);
@@ -212,7 +221,7 @@ contract LPStaking is Initializable {
     */
     function getUserStakeAmounts(uint32 _poolId, address addr) public view returns (string memory res, uint256 ttl) {
         require(_poolId < pools.length, "wrong id");
-        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        UserStakeInfo storage user = userInfo[_poolId][addr];
         if (user.size == 0) {
             return ("", 0);
         }
@@ -234,7 +243,7 @@ contract LPStaking is Initializable {
     */
     function getUserPendingReward(uint32 _poolId, address addr) public view returns (string memory res, uint256 ttl) {
         require(_poolId < pools.length, "wrong id");
-        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        UserStakeInfo storage user = userInfo[_poolId][addr];
         if (user.size == 0) {
             return ("", 0);
         }
@@ -256,7 +265,7 @@ contract LPStaking is Initializable {
     */
     function getUserUnstakedAmount(uint32 _poolId, address addr) public view returns (string memory res) {
         require(_poolId < pools.length, "wrong id");
-        UserLPStakeInfo storage user = userInfo[_poolId][addr];
+        UserStakeInfo storage user = userInfo[_poolId][addr];
         if (user.size == 0) {
             return "";
         }
@@ -269,7 +278,7 @@ contract LPStaking is Initializable {
     /**
         @notice calculate the unclaimed reward of a user in one entity
         @dev the accumulated reward per share is considered, add with reward from latest pool update
-        @dev using current state of pool (total lp in pool).
+        @dev using current state of pool (total token in pool).
         @dev the formula is: (a * n) + delta(now - l) * c - rewardDebt
         @dev a: accumulatedRewardPerShare in pool, n: total share, delta(now - l): seconds since last update
         @dev c: current reward per share per second, rewardDebt: reward already claimed by user in this pool
@@ -285,15 +294,16 @@ contract LPStaking is Initializable {
     ) public view returns (uint256) {
         require(_poolId < pools.length, "wrong id");
         PoolInfo memory pool = pools[_poolId];
-        UserLPStakeInfo storage user = userInfo[_poolId][addr];
-        LPStakeEntity memory entity = user.entities[uint8(_index)];
+        UserStakeInfo storage user = userInfo[_poolId][addr];
+        StakeEntity memory entity = user.entities[uint8(_index)];
         uint256 acc0xBPerShare = pool.acc0xBPerShare;
-        uint256 lpSupply = pool.lpAmountInPool;
-        if (block.timestamp > pool.lastRewardTimestamp && lpSupply != 0) {
-            uint256 reward = getDelta(pool.lastRewardTimestamp, block.timestamp) * getCurrentRewardPerLPPerSecond(pool);
-            acc0xBPerShare = acc0xBPerShare + (reward * ONE_LP) / lpSupply;
+        uint256 tokenSupply = pool.stakedAmountInPool;
+        uint256 tstamp = poolTimestamp(pool);
+        if (tstamp > pool.lastRewardTimestamp && tokenSupply != 0) {
+            uint256 reward = getDelta(pool.lastRewardTimestamp, tstamp) * getCurrentRewardPerEtherPerSecond(pool);
+            acc0xBPerShare = acc0xBPerShare + (reward * ETHER) / tokenSupply;
         }
-        return (entity.amount * acc0xBPerShare) / ONE_LP - entity.rewardDebt;
+        return (entity.amount * acc0xBPerShare) / ETHER - entity.rewardDebt;
     }
 
     /**
@@ -318,7 +328,7 @@ contract LPStaking is Initializable {
         uint32 _index
     ) public view returns (bool) {
         require(_poolId < pools.length, "wrong id");
-        LPStakeEntity memory entity = userInfo[_poolId][addr].entities[uint8(_index)];
+        StakeEntity memory entity = userInfo[_poolId][addr].entities[uint8(_index)];
         return (entity.creationTime + withdrawTimeout < block.timestamp);
     }
 
@@ -335,7 +345,7 @@ contract LPStaking is Initializable {
         uint32 _index
     ) public view returns (uint256) {
         require(_poolId < pools.length, "wrong id");
-        LPStakeEntity memory entity = userInfo[_poolId][addr].entities[uint8(_index)];
+        StakeEntity memory entity = userInfo[_poolId][addr].entities[uint8(_index)];
         uint256 durationSinceStart = block.timestamp - entity.creationTime;
         for (uint256 i = withdrawTaxPortion.length - 1; i > 0; i--) {
             if (withdrawTaxLevel[i] <= durationSinceStart) {
@@ -355,6 +365,10 @@ contract LPStaking is Initializable {
         token0xBAddress = _token;
     }
 
+    /**
+        @notice set tax levels
+        @param _newLevels levels of new taxes
+    */
     function setTaxLevels(uint256[] memory _newLevels) external onlyAuthorities {
         require(_newLevels.length == 4, "please write 4 levels");
         require(
@@ -385,17 +399,17 @@ contract LPStaking is Initializable {
     }
 
     /**
-        @notice set new lpstaking entities limit
+        @notice set new staking entities limit
         @param _newLimit new limit
     */
-    function setLPStakingEntitiesLimit(uint256 _newLimit) external onlyAuthorities {
+    function setstakingRecordsLimitPerPool(uint256 _newLimit) external onlyAuthorities {
         require(_newLimit > 0, "limit must be positive");
-        lpStakingEntitiesLimit = _newLimit;
+        stakingRecordsLimitPerPool = _newLimit;
     }
 
     /**
-        @notice add new pool to stake LP
-        @param _token address of LP token
+        @notice add new pool to stake token
+        @param _token address of token
         @param _totalDistribute total distribution in 0xB for this pool
         @param _startTime timestamp to start pool
         @param _duration duration of pool
@@ -412,12 +426,12 @@ contract LPStaking is Initializable {
         pools.push(
             PoolInfo({
                 name: _name,
-                lpToken: IERC20(_token),
+                stakingToken: IERC20(_token),
                 totalDistribute: _totalDistribute,
                 startTime: _startTime,
                 duration: _duration,
                 acc0xBPerShare: 0,
-                lpAmountInPool: 0,
+                stakedAmountInPool: 0,
                 lastRewardTimestamp: _startTime
             })
         );
@@ -425,7 +439,7 @@ contract LPStaking is Initializable {
 
     // ----- Public WRITE functions -----
     /**
-        @notice deposit _amount of lp to the pool with index _poolId to start new entity of staking
+        @notice deposit _amount of token to the pool with index _poolId to start new entity of staking
         @dev add new entity to control staking timestamp and taxes, never add token to older entities.
         Set rewardDebt to amount of reward currently.
         @param _poolId index of one pool
@@ -435,16 +449,16 @@ contract LPStaking is Initializable {
         require(_poolId < pools.length, "wrong id");
         require(_amount > 0, "please stake");
         address sender = msg.sender;
-        UserLPStakeInfo storage user = userInfo[_poolId][sender];
-        require(user.size < lpStakingEntitiesLimit, "too many entities, please withdraw some");
+        UserStakeInfo storage user = userInfo[_poolId][sender];
+        require(user.size < stakingRecordsLimitPerPool, "too many entities, please withdraw some");
         PoolInfo storage pool = pools[_poolId];
         require(isPoolActive(pool), "pool inactive");
         updatePool(_poolId);
-        pool.lpToken.transferFrom(address(msg.sender), address(this), _amount);
-        pool.lpAmountInPool = pool.lpAmountInPool + _amount;
-        user.entities[uint8(user.size)] = LPStakeEntity({
+        pool.stakingToken.transferFrom(address(msg.sender), address(this), _amount);
+        pool.stakedAmountInPool = pool.stakedAmountInPool + _amount;
+        user.entities[uint8(user.size)] = StakeEntity({
             amount: _amount,
-            rewardDebt: (_amount * pool.acc0xBPerShare) / ONE_LP,
+            rewardDebt: (_amount * pool.acc0xBPerShare) / ETHER,
             creationTime: block.timestamp,
             withdrawn: 0
         });
@@ -465,7 +479,7 @@ contract LPStaking is Initializable {
         }
         address sender = msg.sender;
 
-        UserLPStakeInfo storage user = userInfo[_poolId][sender];
+        UserStakeInfo storage user = userInfo[_poolId][sender];
         updatePool(_poolId);
         PoolInfo storage pool = pools[_poolId];
         uint256 totalPendingReward = 0;
@@ -475,9 +489,9 @@ contract LPStaking is Initializable {
         uint256 _amount;
 
         for (uint256 i = 0; i < _entityIndices.length; i++) {
-            LPStakeEntity storage entity = user.entities[_entityIndices[i]];
+            StakeEntity storage entity = user.entities[_entityIndices[i]];
             _amount = entity.amount;
-            newReward = (entity.amount * pool.acc0xBPerShare) / ONE_LP - entity.rewardDebt;
+            newReward = (entity.amount * pool.acc0xBPerShare) / ETHER - entity.rewardDebt;
             totalPendingReward += newReward;
             totalTax += (_amount * taxOfEntity(_poolId, sender, _entityIndices[i])) / HUNDRED_PERCENT;
             totalWithdrawn += _amount;
@@ -489,15 +503,15 @@ contract LPStaking is Initializable {
         // transfer reward
         IERC20(token0xBAddress).transfer(sender, totalPendingReward);
 
-        // transfer lp tokens
-        (totalTax > 0) ? pool.lpToken.transfer(earlyWithdrawTaxPool, totalTax) : false;
-        pool.lpToken.transfer(sender, totalWithdrawn - totalTax);
-        pool.lpAmountInPool = pool.lpAmountInPool - totalWithdrawn;
+        // transfer tokens
+        (totalTax > 0) ? pool.stakingToken.transfer(earlyWithdrawTaxPool, totalTax) : false;
+        pool.stakingToken.transfer(sender, totalWithdrawn - totalTax);
+        pool.stakedAmountInPool = pool.stakedAmountInPool - totalWithdrawn;
 
         // refactor user storage using O(n) two-pointer algorithm
         uint8 ptrLeft = 0;
         uint8 ptrRight = user.size - 1;
-        LPStakeEntity memory _entity;
+        StakeEntity memory _entity;
         while (true) {
             while (ptrLeft < user.size && user.entities[ptrLeft].amount > 0) {
                 ptrLeft++;
@@ -522,7 +536,7 @@ contract LPStaking is Initializable {
     */
     function withdrawAll(uint32 _poolId) external {
         require(_poolId < pools.length, "wrong id");
-        UserLPStakeInfo storage user = userInfo[_poolId][msg.sender];
+        UserStakeInfo storage user = userInfo[_poolId][msg.sender];
         uint8[] memory indices = new uint8[](user.size);
         for (uint8 i = 0; i < user.size; i++) {
             require(withdrawable(_poolId, msg.sender, i), "entity in withdrawal timeout");
@@ -542,7 +556,7 @@ contract LPStaking is Initializable {
         PoolInfo storage pool = pools[_poolId];
         require(isPoolClaimable(pool), "pool has not started yet");
         address sender = msg.sender;
-        UserLPStakeInfo storage user = userInfo[_poolId][sender];
+        UserStakeInfo storage user = userInfo[_poolId][sender];
         updatePool(_poolId);
 
         uint256 totalReward = 0;
@@ -550,8 +564,8 @@ contract LPStaking is Initializable {
 
         for (uint8 i = 0; i < _indices.length; i++) {
             uint8 index = _indices[i];
-            LPStakeEntity storage entity = user.entities[index];
-            reward = (entity.amount * pool.acc0xBPerShare) / ONE_LP - entity.rewardDebt;
+            StakeEntity storage entity = user.entities[index];
+            reward = (entity.amount * pool.acc0xBPerShare) / ETHER - entity.rewardDebt;
             totalReward += reward;
             entity.rewardDebt = entity.rewardDebt + reward;
         }
@@ -565,7 +579,7 @@ contract LPStaking is Initializable {
     */
     function claimAllReward(uint32 _poolId) external {
         require(_poolId < pools.length, "wrong id");
-        UserLPStakeInfo storage user = userInfo[_poolId][msg.sender];
+        UserStakeInfo storage user = userInfo[_poolId][msg.sender];
         uint8[] memory indices = new uint8[](user.size);
         for (uint8 i = 0; i < user.size; i++) {
             indices[i] = i;
@@ -574,24 +588,25 @@ contract LPStaking is Initializable {
     }
 
     /**
-        @notice update data in a lp staking pool
+        @notice update data in a staking pool
         @dev update accumulated reward per share of a pool for sake of reward optimization
         @param _poolId index of pool
     */
     function updatePool(uint32 _poolId) public {
         PoolInfo storage pool = pools[_poolId];
-        if (block.timestamp <= pool.lastRewardTimestamp) {
+        uint256 tstamp = poolTimestamp(pool);
+        if (tstamp <= pool.lastRewardTimestamp) {
             return;
         }
-        uint256 lpSupply = pool.lpAmountInPool;
-        if (lpSupply == 0) {
-            pool.lastRewardTimestamp = block.timestamp;
+        uint256 tokenSupply = pool.stakedAmountInPool;
+        if (tokenSupply == 0) {
+            pool.lastRewardTimestamp = tstamp;
             return;
         }
-        uint256 rewardSinceLastChange = getDelta(pool.lastRewardTimestamp, block.timestamp) *
-            getCurrentRewardPerLPPerSecond(pool);
+        uint256 rewardSinceLastChange = getDelta(pool.lastRewardTimestamp, tstamp) *
+            getCurrentRewardPerEtherPerSecond(pool);
         pool.acc0xBPerShare = pool.acc0xBPerShare + rewardSinceLastChange;
-        pool.lastRewardTimestamp = block.timestamp;
+        pool.lastRewardTimestamp = tstamp;
     }
 
     // ----- Private/Internal Helpers -----
@@ -600,9 +615,9 @@ contract LPStaking is Initializable {
         return _to - _from;
     }
 
-    /// @notice get current reward per LP per second
-    function getCurrentRewardPerLPPerSecond(PoolInfo memory _pi) internal pure returns (uint256) {
-        return (_pi.totalDistribute * uint256(ONE_LP)) / _pi.duration / _pi.lpAmountInPool;
+    /// @notice get current reward per ether per second
+    function getCurrentRewardPerEtherPerSecond(PoolInfo memory _pi) internal pure returns (uint256) {
+        return (_pi.totalDistribute * uint256(ETHER)) / _pi.duration / _pi.stakedAmountInPool;
     }
 
     /// @notice true if able to start claiming from pool
@@ -612,7 +627,12 @@ contract LPStaking is Initializable {
 
     /// @notice true if pool is active
     function isPoolActive(PoolInfo memory _pi) internal view returns (bool) {
-        return (isPoolClaimable(_pi) && block.timestamp <= _pi.startTime + _pi.duration);
+        return (isPoolClaimable(_pi) && (block.timestamp <= _pi.startTime + _pi.duration));
+    }
+
+    /// @notice return timestamp if pool still active, last timestamp if pool has ended
+    function poolTimestamp(PoolInfo memory _pi) internal view returns (uint256) {
+        return (isPoolActive(_pi) ? block.timestamp : _pi.startTime + _pi.duration);
     }
 
     /// @notice convert uint to string
