@@ -319,11 +319,10 @@ contract CONTRewardManagement is Initializable {
 
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
-        uint256 currentTstamp = block.timestamp;
 
         for (uint256 i = 0; i < contsCount; i++) {
             ContEntity memory _cont = conts[i];
-            rewardAmount += contRewardInInterval(_cont, _cont.lastUpdateTime, currentTstamp);
+            rewardAmount += contRewardInInterval(_cont, _cont.lastUpdateTime, block.timestamp);
         }
 
         return rewardAmount;
@@ -344,6 +343,42 @@ contract CONTRewardManagement is Initializable {
         ContEntity memory cont = conts[_contIndex];
         uint256 rewardCont = contRewardInInterval(cont, cont.lastUpdateTime, block.timestamp);
         return rewardCont;
+    }
+
+    /**
+        @notice query claimed amount of an address in every contract
+        @dev iterate through every contract. Use `contRewardInInterval` to calculate reward in an interval
+        from contract creation time to latest claim.
+        @param account address to query
+        @return rewardAmount total amount of reward available for account, tax included
+    */
+    function _getClaimedAmountOf(address account) external view returns (uint256 rewardAmount) {
+        if (!isContOwner(account)) return 0;
+
+        ContEntity[] memory conts = _contsOfUser[account];
+        uint256 contsCount = conts.length;
+        rewardAmount = 0;
+
+        for (uint256 i = 0; i < contsCount; i++) {
+            ContEntity memory _cont = conts[i];
+            rewardAmount += contRewardInInterval(_cont, _cont.creationTime, _cont.lastUpdateTime);
+        }
+    }
+
+    /**
+        @notice query claimed amount of one contract
+        @dev use `contRewardInInterval` to calculate claimed in an interval
+        from contract creationTime to latest claim.
+        @param account address to query
+        @param _contIndex index of contract in user's list
+        @return rewardCont amount of reward available for selected contract
+    */
+    function _getClaimedAmountOfIndex(address account, uint256 _contIndex) external view returns (uint256 rewardCont) {
+        ContEntity[] memory conts = _contsOfUser[account];
+        uint256 numberOfConts = conts.length;
+        require(_contIndex >= 0 && _contIndex < numberOfConts, "CONT: Cont index is improper");
+        ContEntity memory cont = conts[_contIndex];
+        rewardCont = contRewardInInterval(cont, cont.creationTime, cont.lastUpdateTime);
     }
 
     /**
