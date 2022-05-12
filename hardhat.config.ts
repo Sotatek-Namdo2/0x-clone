@@ -57,7 +57,7 @@ function getChainConfig(network: keyof typeof chainIds): NetworkUserConfig {
     accounts,
     chainId: chainIds[network],
     url,
-    // gasPrice: 50000000000,
+    gasPrice: 10_000_000_000,
   };
 }
 

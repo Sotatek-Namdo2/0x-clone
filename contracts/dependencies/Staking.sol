@@ -184,7 +184,7 @@ contract Staking is Initializable {
         require(_poolId < pools.length, "wrong id");
         UserStakeInfo storage user = userInfo[_poolId][addr];
         totalStake = 0;
-        for (uint8 i = 1; i < user.size; i++) {
+        for (uint8 i = 0; i < user.size; i++) {
             totalStake += user.entities[i].amount;
         }
     }
@@ -199,10 +199,10 @@ contract Staking is Initializable {
     function getUserTimestamps(uint32 _poolId, address addr) public view returns (string memory res, uint256 minTs) {
         require(_poolId < pools.length, "wrong id");
         UserStakeInfo storage user = userInfo[_poolId][addr];
-        minTs = 2**256 - 1;
         if (user.size == 0) {
-            return ("", minTs);
+            return ("", 2**256 - 1);
         }
+        minTs = user.entities[0].creationTime;
         res = uint2str(user.entities[0].creationTime);
         for (uint8 i = 1; i < user.size; i++) {
             uint256 creatime = user.entities[i].creationTime;
@@ -225,7 +225,7 @@ contract Staking is Initializable {
         if (user.size == 0) {
             return ("", 0);
         }
-        ttl = 0;
+        ttl = user.entities[0].amount + user.entities[0].withdrawn;
         res = uint2str(user.entities[0].amount + user.entities[0].withdrawn);
         for (uint8 i = 1; i < user.size; i++) {
             uint256 amount = user.entities[i].amount + user.entities[i].withdrawn;
@@ -247,7 +247,7 @@ contract Staking is Initializable {
         if (user.size == 0) {
             return ("", 0);
         }
-        ttl = 0;
+        ttl = pendingReward(_poolId, addr, 0);
         res = uint2str(pendingReward(_poolId, addr, 0));
         for (uint8 i = 1; i < user.size; i++) {
             uint256 rw = pendingReward(_poolId, addr, i);
@@ -301,7 +301,7 @@ contract Staking is Initializable {
         uint256 tstamp = poolTimestamp(pool);
         if (tstamp > pool.lastRewardTimestamp && tokenSupply != 0) {
             uint256 reward = getDelta(pool.lastRewardTimestamp, tstamp) * getCurrentRewardPerEtherPerSecond(pool);
-            acc0xBPerShare = acc0xBPerShare + (reward * ETHER) / tokenSupply;
+            acc0xBPerShare = acc0xBPerShare + reward;
         }
         return (entity.amount * acc0xBPerShare) / ETHER - entity.rewardDebt;
     }
