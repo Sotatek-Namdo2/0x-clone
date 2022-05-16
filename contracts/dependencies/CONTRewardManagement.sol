@@ -350,18 +350,23 @@ contract CONTRewardManagement is Initializable {
         @dev iterate through every contract. Use `contRewardInInterval` to calculate reward in an interval
         from contract creation time to latest claim.
         @param account address to query
-        @return rewardAmount total amount of reward available for account, tax included
+        @return total total amount of reward available for account, tax included
+        @return list a packed list of every entries
     */
-    function _getClaimedAmountOf(address account) external view returns (uint256 rewardAmount) {
-        if (!isContOwner(account)) return 0;
+    function _getClaimedAmountOf(address account) external view returns (uint256 total, string memory list) {
+        if (!isContOwner(account)) return (0, "");
 
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
-        rewardAmount = 0;
-
-        for (uint256 i = 0; i < contsCount; i++) {
+        uint256 rw = contRewardInInterval(conts[0], conts[0].creationTime, conts[0].lastUpdateTime);
+        total = rw;
+        list = uint2str(rw);
+        string memory separator = "#";
+        for (uint256 i = 1; i < contsCount; i++) {
             ContEntity memory _cont = conts[i];
-            rewardAmount += contRewardInInterval(_cont, _cont.creationTime, _cont.lastUpdateTime);
+            uint256 _claimed = contRewardInInterval(_cont, _cont.creationTime, _cont.lastUpdateTime);
+            total += _claimed;
+            list = string(abi.encodePacked(list, separator, uint2str(_claimed)));
         }
     }
 
