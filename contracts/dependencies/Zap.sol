@@ -53,8 +53,7 @@ contract Zap is OwnableUpgradeable {
     function initialize(
         address _usdtToken,
         address _wrappedNative,
-        address _usdcToken,
-        address _zeroXBlockToken
+        address _usdcToken
     ) external initializer {
         __Ownable_init();
         require(owner() != address(0), "Zap: owner must be set");
@@ -62,7 +61,6 @@ contract Zap is OwnableUpgradeable {
         usdcToken = _usdcToken;
         usdtToken = _usdtToken;
         wrappedNative = _wrappedNative;
-        zeroXBlockToken = _zeroXBlockToken;
     }
 
     // solhint-disable-next-line
