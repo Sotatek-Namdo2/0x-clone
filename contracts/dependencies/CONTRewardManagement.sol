@@ -596,32 +596,31 @@ contract CONTRewardManagement is Initializable {
         ContEntity memory cont,
         uint256 leftTstamp,
         uint256 rightTstamp
-    ) private view returns (uint256) {
+    ) private view returns (uint256 result) {
         require(leftTstamp <= rightTstamp, "wrong tstamps params");
         require(leftTstamp >= cont.creationTime, "left tstamps bad");
         ContType _cType = cont.cType;
 
-        uint256 lastUpdateIndex = historyBinarySearch(_cType, leftTstamp);
+        uint256 firstUpdateInd = historyBinarySearch(_cType, leftTstamp);
+        uint256 lastUpdateInd = historyBinarySearch(_cType, rightTstamp);
 
         uint256 contBuyPrice = cont.buyPrice;
         uint256 itrAPR = contAPRAt(cont, leftTstamp);
         uint256 itrTstamp = leftTstamp;
-        uint256 nextTstamp = 0;
-        uint256 result = 0;
+        uint256 nextTstamp;
+        result = 0;
         uint256 deltaTstamp;
-        uint256 intervalReward;
         uint256 creatime = cont.creationTime;
         bool diffInterval;
-        for (uint256 index = lastUpdateIndex; index < aprChangesHistory[_cType].length; index++) {
+        for (uint256 index = firstUpdateInd; index < lastUpdateInd; index++) {
             nextTstamp = aprChangesHistory[_cType][index].timestamp;
             diffInterval = (fullIntervalCount(nextTstamp, creatime) != fullIntervalCount(itrTstamp, creatime));
             if (diffInterval) {
                 nextTstamp = creatime + autoReduceAPRInterval * (fullIntervalCount(itrTstamp, creatime) + 1);
             }
             deltaTstamp = nextTstamp - itrTstamp;
-            intervalReward = (((contBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
             itrTstamp = nextTstamp;
-            result += intervalReward;
+            result += (((contBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
 
             if (diffInterval) {
                 itrAPR = reduceByPercent(itrAPR, int256(autoReduceAPRRate));
@@ -638,9 +637,8 @@ contract CONTRewardManagement is Initializable {
                 nextTstamp = creatime + autoReduceAPRInterval * (fullIntervalCount(itrTstamp, creatime) + 1);
             }
             deltaTstamp = nextTstamp - itrTstamp;
-            intervalReward = (((contBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
             itrTstamp = nextTstamp;
-            result += intervalReward;
+            result += (((contBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
 
             if (diffInterval) {
                 itrAPR = reduceByPercent(itrAPR, int256(autoReduceAPRRate));
