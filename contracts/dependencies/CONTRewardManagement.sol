@@ -592,6 +592,12 @@ contract CONTRewardManagement is Initializable {
         return resultAPR;
     }
 
+    /// @notice calculate reward in an interval
+    /// @dev iterate through APR change log and for each APR segment/interval, add up its reward to the result
+    /// @param cont contract entity, which contains all infos of a contract
+    /// @param leftTstamp left border of the interval
+    /// @param rightTstamp right border of the interval
+    /// @return result
     function contRewardInInterval(
         ContEntity memory cont,
         uint256 leftTstamp,
@@ -662,6 +668,7 @@ contract CONTRewardManagement is Initializable {
         return lastUpdateTime + cashoutTimeout <= block.timestamp;
     }
 
+    /// @notice convert uint256 to string
     function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
         if (_i == 0) {
             return "0";
@@ -684,11 +691,13 @@ contract CONTRewardManagement is Initializable {
         return string(bstr);
     }
 
+    /// @notice reduce input to a percentage with decimals
     function reduceByPercent(uint256 input, int256 reducePercent) internal pure returns (uint256) {
         uint256 newPercentage = uint256(int256(HUNDRED_PERCENT) - reducePercent);
         return ((input * newPercentage) / HUNDRED_PERCENT);
     }
 
+    /// @notice check if an account is a contract owner
     function isContOwner(address account) private view returns (bool) {
         return contOwners.get(account) > 0;
     }
