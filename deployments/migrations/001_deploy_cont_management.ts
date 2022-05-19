@@ -7,6 +7,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const { deploy } = deployments;
   const { deployer } = await getNamedAccounts();
 
+  console.log(deployer);
+
   const contPrices = [
     utils.parseEther("5"), // Square
     utils.parseEther("15"), // Cube
@@ -20,6 +22,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   ];
   const autoReduceAPRRate = 30_000_000;
   const cashoutTimeout = 1;
+  // const usdc = process.env.USDC_TOKEN_ADDRESS;
+  // const decreaseFeePercent = 10000000;
+  // const tesseractFee = utils.parseEther("4");
+  // const cubeFee = utils.parseEther("3");
   await deploy("CONTRewardManagement", {
     from: deployer,
     proxy: {
