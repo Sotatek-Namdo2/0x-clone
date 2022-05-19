@@ -64,6 +64,15 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     LiquidityRouter public _liqRouter;
     bool public enableAutoSwapCashout;
 
+    // ***** Sell tax storage *****
+    address adminAddress;
+    uint256 public sellTax = 10; // default 10%
+    mapping(address => bool) public _isWhitelisted;
+
+    // ***** Customs errors *****
+    error InvalidSellTax(uint256 _sellTax);
+    error InvalidAddress(address _address);
+
     // ***** Events *****
     event ContsMinted(address sender, ContType cType, uint256 contsCount);
     event RewardCashoutOne(address sender, uint256 index, uint256 amount, ContType cType);
@@ -127,6 +136,8 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         enableAutoSwapDevFund = true;
         enableMintConts = true;
         enableCashout = true;
+
+        adminAddress = msg.sender;
     }
 
     // ***** WRITE functions for admin *****
@@ -304,16 +315,66 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         enableAutoSwapCashout = newVal;
     }
 
+    /**
+        @notice change sell tax rate
+        @param newVal new tax rate
+    */
+    function changeSellTaxRate(uint256 newVal) external onlyOwner {
+        // sell tax rate cannot be higher than 100%
+        if (newVal >= 100) {
+            revert InvalidSellTax(newVal);
+        }
+        sellTax = newVal;
+    }
+
+    /**
+        @notice whitelist/un-whitelist an account
+        @param account account to change status
+        @param value set to true if whitelisting
+    */
+    function setWhitelistStatus(address account, bool value) external onlyOwner {
+        if (account == address(0)) {
+            revert InvalidAddress(account);
+        }
+        _isWhitelisted[account] = value;
+    }
+
+    /**
+        @notice change admin address
+        @param newVal new admin address
+    */
+    function changeAdminAddress(address newVal) external onlyOwner {
+        if (newVal == address(0)) {
+            revert InvalidAddress(newVal);
+        }
+        adminAddress = newVal;
+    }
+
     // ***** Private helpers functions *****
     /// @notice override ERC-20 transfer function to check blacklisted address and prevent malicious actions
+    /// also check the whitelisted address and apply sell tax
     function _transfer(
         address from,
         address to,
         uint256 amount
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
+        // solution 1
+        uint256 sellTaxAmount = (amount * sellTax) / 100;
+        if (sellTaxAmount > 0) {
+            super._transfer(from, adminAddress, sellTaxAmount);
+        }
+        uint256 amountWithTax = _isWhitelisted[from] ? amount : amount - sellTaxAmount;
+        _super._transfer(from, to, amountWithTax);
 
-        super._transfer(from, to, amount);
+        // solution 2
+        if (_isWhitelisted[from]) {
+            super._transfer(from, to, amount);
+        } else {
+            uint256 taxAmount = (amount * sellTax) / 100;
+            super._transfer(from, adminAddress, taxAmount);
+            super._transfer(from, to, amount - taxAmount);
+        }
     }
 
     // Send fund from sender to pool.
@@ -471,7 +532,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
 
     /**
         @notice mint new contracts
-        @dev create new contract instances, take funds from user and distribute to admin wallets according to 
+        @dev create new contract instances, take funds from user and distribute to admin wallets according to
         SC configs.
         @param names list of names. The number of string in this list will be the count of new contracts.
         @param _cType type of new contracts.
