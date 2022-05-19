@@ -65,9 +65,9 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     bool public enableAutoSwapCashout;
 
     // ***** Sell tax storage *****
-    address adminAddress;
-    uint256 public sellTax = 10; // default 10%
-    mapping(address => bool) public _isWhitelisted;
+    address public sellTaxTargetAddress;
+    uint256 public sellTax;
+    mapping(address => bool) public _isSellTaxWhitelisted;
 
     // ***** Customs errors *****
     error InvalidSellTax(uint256 _sellTax);
@@ -137,7 +137,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         enableMintConts = true;
         enableCashout = true;
 
-        adminAddress = msg.sender;
+        sellTaxTargetAddress = msg.sender;
     }
 
     // ***** WRITE functions for admin *****
@@ -336,18 +336,18 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         if (account == address(0)) {
             revert InvalidAddress(account);
         }
-        _isWhitelisted[account] = value;
+        _isSellTaxWhitelisted[account] = value;
     }
 
     /**
         @notice change admin address
         @param newVal new admin address
     */
-    function changeAdminAddress(address newVal) external onlyOwner {
+    function changeSellTaxTargetAddress(address newVal) external onlyOwner {
         if (newVal == address(0)) {
             revert InvalidAddress(newVal);
         }
-        adminAddress = newVal;
+        sellTaxTargetAddress = newVal;
     }
 
     // ***** Private helpers functions *****
@@ -359,22 +359,12 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 amount
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
-        // solution 1
-        uint256 sellTaxAmount = (amount * sellTax) / 100;
-        if (sellTaxAmount > 0) {
-            super._transfer(from, adminAddress, sellTaxAmount);
+        uint256 sellTaxAmount = amount * sellTax / 100;
+        if (sellTaxAmount > 0 && !_isSellTaxWhitelisted[from]) {
+            super._transfer(from, sellTaxTargetAddress, sellTaxAmount);
         }
-        uint256 amountWithTax = _isWhitelisted[from] ? amount : amount - sellTaxAmount;
-        _super._transfer(from, to, amountWithTax);
-
-        // solution 2
-        if (_isWhitelisted[from]) {
-            super._transfer(from, to, amount);
-        } else {
-            uint256 taxAmount = (amount * sellTax) / 100;
-            super._transfer(from, adminAddress, taxAmount);
-            super._transfer(from, to, amount - taxAmount);
-        }
+        uint256 amountWithTax = _isSellTaxWhitelisted[from] ? amount : amount - sellTaxAmount;
+        super._transfer(from, to, amountWithTax);
     }
 
     // Send fund from sender to pool.
