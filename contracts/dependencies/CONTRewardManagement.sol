@@ -61,14 +61,22 @@ contract CONTRewardManagement is Initializable {
     mapping(ContType => uint256) private _totalContsPerType;
     mapping(address => mapping(uint256 => bool)) public _brokeevenContract;
 
+    // upgrade for month fee
+
     // Adding feature - fee by month
     // using ContEntity[] => cannot update field into ContEntity struct (because using proxy
 
+    enum InitialDataAfterUpgrade {
+        MONTH_FEE
+    }
+
     IERC20 public feeToken;
     uint256 public decreaseFeePercent;
+    bool public isMonthFeeActive = true;
     mapping(ContType => uint256) public feeInMonth;
     mapping(address => mapping(uint256 => AdditionalDataEntity)) public additionalDataContract;
     mapping(address => mapping(ContType => uint256)) public userAsset;
+    mapping(address => mapping(InitialDataAfterUpgrade => bool)) initialDataAfterUpgrade;
 
     // ----- Events -----
     event BreakevenChanged(ContType _cType, uint256 delta);
@@ -142,7 +150,9 @@ contract CONTRewardManagement is Initializable {
         string[] memory contNames,
         ContType _cType
     ) external onlyToken {
-        _cleanAllExpiredCont(account);
+        if (isMonthFeeActive) {
+            _cleanAllExpiredCont(account);
+        }
         _contsOfUser[account];
         uint256 currentAPR = this.currentRewardAPRPerNewCont(_cType);
 
@@ -172,7 +182,9 @@ contract CONTRewardManagement is Initializable {
     /// @param _contIndex contract index
     /// @return rewardsTotal total amount of rewards claimed
     function _cashoutContReward(address account, uint256 _contIndex) external onlyToken returns (uint256, ContType) {
-        _cleanExpiredCont(account, _contIndex);
+        if (isMonthFeeActive) {
+            _cleanExpiredCont(account, _contIndex);
+        }
         ContEntity[] storage conts = _contsOfUser[account];
         require(_contIndex >= 0 && _contIndex < conts.length, "CONT: Index Error");
         ContEntity storage cont = conts[_contIndex];
@@ -203,7 +215,9 @@ contract CONTRewardManagement is Initializable {
             uint256
         )
     {
-        _cleanAllExpiredCont(account);
+        if (isMonthFeeActive) {
+            _cleanAllExpiredCont(account);
+        }
         ContEntity[] storage conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         require(contsCount > 0, "CASHOUT ERROR: You don't have conts to cash-out");
@@ -320,6 +334,10 @@ contract CONTRewardManagement is Initializable {
 
     function changeFeeToken(address _feeToken) external onlyAuthorities {
         feeToken = IERC20(_feeToken);
+    }
+
+    function changeMonthFeeState(bool _status) external onlyAuthorities {
+        isMonthFeeActive = _status;
     }
 
     function withdrawFeeToken(address _user) external onlyAuthorities {
