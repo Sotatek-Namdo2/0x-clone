@@ -86,11 +86,7 @@ contract CONTRewardManagement is Initializable {
         uint256[] memory _contPrices,
         uint256[] memory _rewardAPRs,
         uint256 _cashoutTimeout,
-        uint256 _autoReduceAPRRate,
-        address _feeToken,
-        uint256 _decreaseFeePercent,
-        uint256 _tesseractFee,
-        uint256 _cubeFee
+        uint256 _autoReduceAPRRate
     ) public initializer {
         autoReduceAPRInterval = UNIX_YEAR;
         totalContsCreated = 0;
@@ -105,6 +101,14 @@ contract CONTRewardManagement is Initializable {
         cashoutTimeout = _cashoutTimeout;
         admin0XB = msg.sender;
         autoReduceAPRRate = _autoReduceAPRRate;
+    }
+
+    function setupDataForMonthFee(
+        address _feeToken,
+        uint256 _decreaseFeePercent,
+        uint256 _tesseractFee,
+        uint256 _cubeFee
+    ) external onlyAuthorities {
         feeToken = IERC20(_feeToken);
         decreaseFeePercent = _decreaseFeePercent;
         feeInMonth[ContType.Tesseract] = _tesseractFee;

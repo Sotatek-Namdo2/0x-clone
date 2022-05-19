@@ -22,10 +22,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   ];
   const autoReduceAPRRate = 30_000_000;
   const cashoutTimeout = 1;
-  const usdc = process.env.USDC_TOKEN_ADDRESS;
-  const decreaseFeePercent = 10000000;
-  const tesseractFee = utils.parseEther("4");
-  const cubeFee = utils.parseEther("3");
+  // const usdc = process.env.USDC_TOKEN_ADDRESS;
+  // const decreaseFeePercent = 10000000;
+  // const tesseractFee = utils.parseEther("4");
+  // const cubeFee = utils.parseEther("3");
   await deploy("CONTRewardManagement", {
     from: deployer,
     proxy: {
@@ -34,16 +34,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
       execute: {
         init: {
           methodName: "initialize",
-          args: [
-            contPrices,
-            rewardAPRs,
-            cashoutTimeout,
-            autoReduceAPRRate,
-            usdc,
-            decreaseFeePercent,
-            tesseractFee,
-            cubeFee,
-          ],
+          args: [contPrices, rewardAPRs, cashoutTimeout, autoReduceAPRRate],
         },
       },
     },
