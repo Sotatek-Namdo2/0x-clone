@@ -444,18 +444,23 @@ contract CONTRewardManagement is Initializable {
         @dev iterate through every contract. Use `contRewardInIntervalV2` to calculate reward in an interval
         from contract creation time to latest claim.
         @param account address to query
-        @return rewardAmount total amount of reward available for account, tax included
+        @return total total amount of reward available for account, tax included
+        @return list a packed list of every entries
     */
-    function _getClaimedAmountOf(address account) external view returns (uint256 rewardAmount) {
-        if (!isContOwner(account)) return 0;
+    function _getClaimedAmountOf(address account) external view returns (uint256 total, string memory list) {
+        if (!isContOwner(account)) return (0, "");
 
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
-        rewardAmount = 0;
-
-        for (uint256 i = 0; i < contsCount; i++) {
+        uint256 rw = contRewardInIntervalV2(0, conts[0], conts[0].creationTime, conts[0].lastUpdateTime);
+        total = rw;
+        list = uint2str(rw);
+        string memory separator = "#";
+        for (uint256 i = 1; i < contsCount; i++) {
             ContEntity memory _cont = conts[i];
-            rewardAmount += contRewardInIntervalV2(i, _cont, _cont.creationTime, _cont.lastUpdateTime);
+            uint256 _claimed = contRewardInIntervalV2(i, _cont, _cont.creationTime, _cont.lastUpdateTime);
+            total += _claimed;
+            list = string(abi.encodePacked(list, separator, uint2str(_claimed)));
         }
     }
 
@@ -694,36 +699,41 @@ contract CONTRewardManagement is Initializable {
         return resultAPR;
     }
 
+    /// @notice calculate reward in an interval
+    /// @dev iterate through APR change log and for each APR segment/interval, add up its reward to the result
+    /// @param cont contract entity, which contains all infos of a contract
+    /// @param leftTstamp left border of the interval
+    /// @param rightTstamp right border of the interval
+    /// @return result
     function contRewardInInterval(
         ContEntity memory cont,
         uint256 leftTstamp,
         uint256 rightTstamp
-    ) private view returns (uint256) {
+    ) private view returns (uint256 result) {
         require(leftTstamp <= rightTstamp, "wrong tstamps params");
         require(leftTstamp >= cont.creationTime, "left tstamps bad");
         ContType _cType = cont.cType;
 
-        uint256 lastUpdateIndex = historyBinarySearch(_cType, leftTstamp);
+        uint256 firstUpdateInd = historyBinarySearch(_cType, leftTstamp);
+        uint256 lastUpdateInd = historyBinarySearch(_cType, rightTstamp);
 
         uint256 contBuyPrice = cont.buyPrice;
         uint256 itrAPR = contAPRAt(cont, leftTstamp);
         uint256 itrTstamp = leftTstamp;
-        uint256 nextTstamp = 0;
-        uint256 result = 0;
+        uint256 nextTstamp;
+        result = 0;
         uint256 deltaTstamp;
-        uint256 intervalReward;
         uint256 creatime = cont.creationTime;
         bool diffInterval;
-        for (uint256 index = lastUpdateIndex; index < aprChangesHistory[_cType].length; index++) {
+        for (uint256 index = firstUpdateInd; index < lastUpdateInd; index++) {
             nextTstamp = aprChangesHistory[_cType][index].timestamp;
             diffInterval = (fullIntervalCount(nextTstamp, creatime) != fullIntervalCount(itrTstamp, creatime));
             if (diffInterval) {
                 nextTstamp = creatime + autoReduceAPRInterval * (fullIntervalCount(itrTstamp, creatime) + 1);
             }
             deltaTstamp = nextTstamp - itrTstamp;
-            intervalReward = (((contBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
             itrTstamp = nextTstamp;
-            result += intervalReward;
+            result += (((contBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
 
             if (diffInterval) {
                 itrAPR = reduceByPercent(itrAPR, int256(autoReduceAPRRate));
@@ -740,9 +750,8 @@ contract CONTRewardManagement is Initializable {
                 nextTstamp = creatime + autoReduceAPRInterval * (fullIntervalCount(itrTstamp, creatime) + 1);
             }
             deltaTstamp = nextTstamp - itrTstamp;
-            intervalReward = (((contBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
             itrTstamp = nextTstamp;
-            result += intervalReward;
+            result += (((contBuyPrice * itrAPR) / HUNDRED_PERCENT) * deltaTstamp) / UNIX_YEAR;
 
             if (diffInterval) {
                 itrAPR = reduceByPercent(itrAPR, int256(autoReduceAPRRate));
@@ -778,6 +787,7 @@ contract CONTRewardManagement is Initializable {
         return lastUpdateTime + cashoutTimeout <= block.timestamp;
     }
 
+    /// @notice convert uint256 to string
     function uint2str(uint256 _i) internal pure returns (string memory _uintAsString) {
         if (_i == 0) {
             return "0";
@@ -800,11 +810,13 @@ contract CONTRewardManagement is Initializable {
         return string(bstr);
     }
 
+    /// @notice reduce input to a percentage with decimals
     function reduceByPercent(uint256 input, int256 reducePercent) internal pure returns (uint256) {
         uint256 newPercentage = uint256(int256(HUNDRED_PERCENT) - reducePercent);
         return ((input * newPercentage) / HUNDRED_PERCENT);
     }
 
+    /// @notice check if an account is a contract owner
     function isContOwner(address account) private view returns (bool) {
         return contOwners.get(account) > 0;
     }
