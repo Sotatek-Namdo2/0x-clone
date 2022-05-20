@@ -352,7 +352,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
 
     // ***** Private helpers functions *****
     /// @notice override ERC-20 transfer function to check blacklisted address and prevent malicious actions
-    /// also check the whitelisted address and apply sell tax
+    /// also check the sell tax whitelisted address and apply sell tax when user add liquidity to traderjoe pool
     function _transfer(
         address from,
         address to,
@@ -360,10 +360,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
         uint256 sellTaxAmount = amount * sellTax / 100;
-        if (sellTaxAmount > 0 && !_isSellTaxWhitelisted[from]) {
+        if (sellTaxAmount > 0 && !_isSellTaxWhitelisted[from] && to == uniswapV2Pair) {
             super._transfer(from, sellTaxTargetAddress, sellTaxAmount);
         }
-        uint256 amountWithTax = _isSellTaxWhitelisted[from] ? amount : amount - sellTaxAmount;
+        uint256 amountWithTax = to != uniswapV2Pair ? amount : amount - sellTaxAmount;
         super._transfer(from, to, amountWithTax);
     }
 
