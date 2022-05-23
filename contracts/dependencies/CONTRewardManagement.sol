@@ -928,8 +928,8 @@ contract CONTRewardManagement is Initializable {
     }
 
     function getFullDataCont(address user) public view returns (FullDataEntity[] memory) {
-        FullDataEntity[] memory fullData;
         ContEntity[] memory listCont = _contsOfUser[user];
+        FullDataEntity[] memory fullData = new FullDataEntity[](listCont.length - 1);
         for (uint256 i = 0; i < listCont.length; ++i) {
             ContEntity memory cont = listCont[i];
             AdditionalDataEntity memory additional = getExpireIn(user, i);
