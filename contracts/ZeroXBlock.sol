@@ -359,7 +359,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         uint256 amount
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
-        uint256 sellTaxAmount = amount * sellTax / 100;
+        uint256 sellTaxAmount = (amount * sellTax) / 100;
         if (sellTaxAmount > 0 && !_isSellTaxWhitelisted[from]) {
             super._transfer(from, sellTaxTargetAddress, sellTaxAmount);
         }

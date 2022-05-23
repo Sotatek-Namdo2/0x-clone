@@ -18,6 +18,7 @@ contract CONTRewardManagement is Initializable {
     // ----- Constants -----
     uint256 private constant UNIX_YEAR = 31_536_000;
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
+    uint256 private constant SEVEN_DAY = 7 hours;
     uint256 public constant ONE_MONTH = 1 days;
     uint256 public constant THREE_MONTH = 3 days;
     // uint256
@@ -33,6 +34,17 @@ contract CONTRewardManagement is Initializable {
     }
 
     struct AdditionalDataEntity {
+        uint256 expireIn;
+        uint256 lastUpdated;
+    }
+
+    struct FullDataEntity {
+        string name;
+        uint256 creationTime;
+        uint256 lastUpdateTime;
+        uint256 initialAPR;
+        uint256 buyPrice;
+        ContType cType;
         uint256 expireIn;
         uint256 lastUpdated;
     }
@@ -389,6 +401,9 @@ contract CONTRewardManagement is Initializable {
 
     function _cleanAllExpiredOrUpdateCont(address account) private {
         ContEntity[] memory listCont = _contsOfUser[account];
+        if (listCont.length == 0) {
+            return;
+        }
         uint256 maxIndex = listCont.length - 1;
         for (uint256 i = 0; i < listCont.length; ++i) {
             if (i > maxIndex) {
@@ -910,5 +925,26 @@ contract CONTRewardManagement is Initializable {
             }
         }
         return count;
+    }
+
+    function getFullDataCont(address user) public view returns (FullDataEntity[] memory) {
+        FullDataEntity[] memory fullData;
+        ContEntity[] memory listCont = _contsOfUser[user];
+        for (uint256 i = 0; i < listCont.length; ++i) {
+            ContEntity memory cont = listCont[i];
+            AdditionalDataEntity memory additional = getExpireIn(user, i);
+            FullDataEntity memory item = FullDataEntity(
+                cont.name,
+                cont.creationTime,
+                cont.lastUpdateTime,
+                cont.initialAPR,
+                cont.buyPrice,
+                cont.cType,
+                additional.expireIn,
+                additional.lastUpdated
+            );
+            fullData[i] = item;
+        }
+        return fullData;
     }
 }
