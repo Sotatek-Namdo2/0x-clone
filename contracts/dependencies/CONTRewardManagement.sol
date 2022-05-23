@@ -18,9 +18,9 @@ contract CONTRewardManagement is Initializable {
     // ----- Constants -----
     uint256 private constant UNIX_YEAR = 31_536_000;
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
-    uint256 private constant ONE_MONTH = 1 hours;
-    uint256 private constant THREE_MONTH = 3 hours;
-    uint256 private constant SEVEN_DAY = 7 days;
+    uint256 private constant SEVEN_DAY = 7 hours;
+    uint256 public constant ONE_MONTH = 1 days;
+    uint256 public constant THREE_MONTH = 3 days;
     // uint256
 
     // ----- Cont Structs -----
@@ -93,7 +93,7 @@ contract CONTRewardManagement is Initializable {
     mapping(address => mapping(ContType => uint256)) public userAsset;
     // using mapping instead of array to easy scale with proxy
     mapping(uint256 => MonthFeeLog) public monthFeeLogs;
-    uint256 maxIndexMonthFeeLogs;
+    uint256 public maxIndexMonthFeeLogs;
 
     // ----- Events -----
     event BreakevenChanged(ContType _cType, uint256 delta);
