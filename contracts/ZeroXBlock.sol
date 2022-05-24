@@ -350,6 +350,17 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         sellTaxTargetAddress = newVal;
     }
 
+    /**
+        @notice change uniswapV2Pair
+        @param newVal new uniswapV2Pair address
+    */
+    function changeUniswapV2PairAddress(address newVal) external onlyOwner {
+        if (newVal == address(0)) {
+            revert InvalidAddress(newVal);
+        }
+        uniswapV2Pair = newVal;
+    }
+
     // ***** Private helpers functions *****
     /// @notice override ERC-20 transfer function to check blacklisted address and prevent malicious actions
     /// also check the sell tax whitelisted address and apply sell tax when user add liquidity to traderjoe pool
