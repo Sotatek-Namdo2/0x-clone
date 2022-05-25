@@ -397,7 +397,8 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
             emit Funded(targetWalletName, cType, token, amount);
         } else {
             _transfer(sender, address(_liqRouter), amount);
-            uint256 amountOut = _liqRouter.swapExact0xBForTokenNoFee(targetWalletAddress, token, amount);
+            _liqRouter.swapExact0xBForTokenNoFee(targetWalletAddress, token, amount);
+            uint256 amountOut = (_liqRouter.getOutputAmount(true, token, amount) * sellTax) / 100;
             emit Funded(targetWalletName, cType, token, amountOut);
         }
     }

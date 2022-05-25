@@ -131,9 +131,21 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         address[] memory path = getPath(outTokenAddr, false);
         uint256[] memory result;
         if (outTokenAddr == uniswapV2Router.WAVAX()) {
-            result = uniswapV2Router.swapExactTokensForAVAX(amountIn, 0, path, receiver, block.timestamp);
+            uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
+                amountIn,
+                0,
+                path,
+                receiver,
+                block.timestamp
+            );
         } else {
-            result = uniswapV2Router.swapExactTokensForTokens(amountIn, 0, path, receiver, block.timestamp);
+            uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn,
+                0,
+                path,
+                receiver,
+                block.timestamp
+            );
         }
         return result[result.length - 1];
     }
