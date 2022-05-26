@@ -80,6 +80,17 @@
       "type": "receive"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_sellTax",
+          "type": "uint256"
+        }
+      ],
+      "name": "InvalidSellTax",
+      "type": "error"
+    },
+    {
       "anonymous": false,
       "inputs": [
         {
@@ -415,6 +426,32 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "sellTax",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_sellTax",
+          "type": "uint256"
+        }
+      ],
+      "name": "setSellTax",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

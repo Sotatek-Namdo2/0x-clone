@@ -2252,7 +2252,7 @@
         "label": "_crm",
         "offset": 0,
         "slot": "201",
-        "type": "t_contract(CONTRewardManagement)8756"
+        "type": "t_contract(CONTRewardManagement)8762"
       },
       {
         "astId": 3110,
@@ -2552,7 +2552,7 @@
         "label": "bool",
         "numberOfBytes": "1"
       },
-      "t_contract(CONTRewardManagement)8756": {
+      "t_contract(CONTRewardManagement)8762": {
         "encoding": "inplace",
         "label": "contract CONTRewardManagement",
         "numberOfBytes": "20"

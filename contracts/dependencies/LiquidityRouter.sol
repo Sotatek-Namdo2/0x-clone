@@ -23,6 +23,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
     uint256 public swapTaxFee;
     address public swapTaxPool;
 
+    uint256 public sellTax;
+
+    // ----- Customs errors -----
+    error InvalidSellTax(uint256 _sellTax);
+
     // ----- Constructor -----
     function initialize(
         address _router,
@@ -62,8 +67,9 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         address[] memory path = getPath(targetToken, is0xBOut);
         uint256[] memory amountsOut = uniswapV2Router.getAmountsOut(inputAmount, path);
         uint256 result = amountsOut[amountsOut.length - 1];
-        result = (result * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
-        return result;
+        uint256 resultWithSellTax = (result * (100 - sellTax)) / 100;
+        uint256 resultWithSwapTax = (resultWithSellTax * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
+        return resultWithSwapTax;
     }
 
     function getInputAmount(
@@ -124,6 +130,13 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uniswapV2Pair = _uniswapV2Pair;
     }
 
+    function setSellTax(uint256 _sellTax) external onlyAuthorities {
+        if (_sellTax >= 100) {
+            revert InvalidSellTax(_sellTax);
+        }
+        sellTax = _sellTax;
+    }
+
     // Only use to fund wallets
     function swapExact0xBForTokenNoFee(
         address receiver,
@@ -175,8 +188,9 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         } else {
             result = uniswapV2Router.swapExactTokensForTokens(amountIn - fee, amountOutMin, path, receiver, deadline);
         }
-        emit Swapped(tokenAddress, amountIn, outTokenAddr, result[result.length - 1]);
-        return (result[result.length - 1], fee);
+        uint256 amountOut = getOutputAmount(false, outTokenAddr, amountIn);
+        emit Swapped(tokenAddress, amountIn, outTokenAddr, amountOut);
+        return (amountOut, fee);
     }
 
     function swap0xBForExactToken(

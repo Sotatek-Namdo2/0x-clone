@@ -324,6 +324,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         if (newVal >= 100) {
             revert InvalidSellTax(newVal);
         }
+        _liqRouter.setSellTax(newVal);
         sellTax = newVal;
     }
 

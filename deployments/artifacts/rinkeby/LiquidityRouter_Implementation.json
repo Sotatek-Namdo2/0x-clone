@@ -2,6 +2,17 @@
   "address": "0x347DE806F783e75c9CBDbbC848E82A97C1b525B7",
   "abi": [
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_sellTax",
+          "type": "uint256"
+        }
+      ],
+      "name": "InvalidSellTax",
+      "type": "error"
+    },
+    {
       "anonymous": false,
       "inputs": [
         {
@@ -337,6 +348,32 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "sellTax",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_sellTax",
+          "type": "uint256"
+        }
+      ],
+      "name": "setSellTax",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -956,7 +993,7 @@
         "type": "t_array(t_uint256)43_storage"
       },
       {
-        "astId": 8773,
+        "astId": 8779,
         "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
         "label": "uniswapV2Router",
         "offset": 0,
@@ -964,7 +1001,7 @@
         "type": "t_contract(IJoeRouter02)14610"
       },
       {
-        "astId": 8775,
+        "astId": 8781,
         "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
         "label": "routerAddress",
         "offset": 0,
@@ -972,7 +1009,7 @@
         "type": "t_address"
       },
       {
-        "astId": 8777,
+        "astId": 8783,
         "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
         "label": "uniswapV2Pair",
         "offset": 0,
@@ -980,7 +1017,7 @@
         "type": "t_address"
       },
       {
-        "astId": 8779,
+        "astId": 8785,
         "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
         "label": "admin0xB",
         "offset": 0,
@@ -988,7 +1025,7 @@
         "type": "t_address_payable"
       },
       {
-        "astId": 8782,
+        "astId": 8788,
         "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
         "label": "token",
         "offset": 0,
@@ -996,7 +1033,7 @@
         "type": "t_contract(IERC20)2517"
       },
       {
-        "astId": 8784,
+        "astId": 8790,
         "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
         "label": "tokenAddress",
         "offset": 0,
@@ -1004,7 +1041,7 @@
         "type": "t_address"
       },
       {
-        "astId": 8786,
+        "astId": 8792,
         "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
         "label": "swapTaxFee",
         "offset": 0,
@@ -1012,12 +1049,20 @@
         "type": "t_uint256"
       },
       {
-        "astId": 8788,
+        "astId": 8794,
         "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
         "label": "swapTaxPool",
         "offset": 0,
         "slot": "108",
         "type": "t_address"
+      },
+      {
+        "astId": 8796,
+        "contract": "contracts/dependencies/LiquidityRouter.sol:LiquidityRouter",
+        "label": "sellTax",
+        "offset": 0,
+        "slot": "109",
+        "type": "t_uint256"
       }
     ],
     "types": {
