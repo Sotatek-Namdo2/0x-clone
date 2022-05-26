@@ -83,6 +83,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
     }
 
     // ----- External WRITE functions -----
+    function updateAdmin0xB(address payable newAdmin) external onlyAuthorities {
+        require(newAdmin != address(0), "UPD_ADMIN: zero addr");
+        admin0xB = newAdmin;
+    }
+
     function updateSwapTaxPool(address payable newPool) external onlyAuthorities {
         require(newPool != address(0), "UPD_WALL: zero addr");
         swapTaxPool = newPool;

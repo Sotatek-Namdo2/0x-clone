@@ -55,17 +55,17 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
     },
   });
 
-  const CONTRewardManagement = await deployments.get("CONTRewardManagement");
-  const LiquidityRouter = await deployments.get("LiquidityRouter");
-  const ZeroXBlock = await deployments.get("ZeroXBlock");
+  // const CONTRewardManagement = await deployments.get("CONTRewardManagement");
+  // const LiquidityRouter = await deployments.get("LiquidityRouter");
+  // const ZeroXBlock = await deployments.get("ZeroXBlock");
   // todo: if address already set then don't call tx
-  await execute("CONTRewardManagement", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
-  await execute("LiquidityRouter", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
-  await execute("Zap", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
-  await execute("Staking", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
-  await execute("ZeroXBlock", { from: deployer, log: true }, "setContManagement", CONTRewardManagement.address);
-  await execute("ZeroXBlock", { from: deployer, log: true }, "setLiquidityRouter", LiquidityRouter.address);
-  await execute("ZeroXBlock", { from: deployer, log: true }, "changeSellTaxRate", 15);
+  // await execute("CONTRewardManagement", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
+  // await execute("LiquidityRouter", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
+  // await execute("Zap", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
+  // await execute("Staking", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
+  // await execute("ZeroXBlock", { from: deployer, log: true }, "setContManagement", CONTRewardManagement.address);
+  // await execute("ZeroXBlock", { from: deployer, log: true }, "setLiquidityRouter", LiquidityRouter.address);
+  // await execute("ZeroXBlock", { from: deployer, log: true }, "changeSellTaxRate", 15);
 };
 
 func.tags = ["ZeroXBlock"];
