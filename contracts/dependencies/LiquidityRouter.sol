@@ -65,11 +65,16 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 inputAmount
     ) public view returns (uint256) {
         address[] memory path = getPath(targetToken, is0xBOut);
+        if (is0xBOut) {
+            inputAmount = (inputAmount * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
+        } else {
+            uint256 inputAmountWithSwapTax = (inputAmount * (HUNDRED_PERCENT + swapTaxFee)) / HUNDRED_PERCENT;
+            uint256 inputAmountWithSellTax = (inputAmountWithSwapTax * (100 - sellTax)) / 100;
+            inputAmount = inputAmountWithSellTax;
+        }
         uint256[] memory amountsOut = uniswapV2Router.getAmountsOut(inputAmount, path);
         uint256 result = amountsOut[amountsOut.length - 1];
-        uint256 resultWithSwapTax = (result * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
-        uint256 resultWithSellTax = (resultWithSwapTax * (100 - sellTax)) / 100;
-        return resultWithSellTax;
+        return result;
     }
 
     function getInputAmount(
