@@ -67,9 +67,9 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         address[] memory path = getPath(targetToken, is0xBOut);
         uint256[] memory amountsOut = uniswapV2Router.getAmountsOut(inputAmount, path);
         uint256 result = amountsOut[amountsOut.length - 1];
-        uint256 resultWithSellTax = (result * (100 - sellTax)) / 100;
-        uint256 resultWithSwapTax = (resultWithSellTax * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
-        return resultWithSwapTax;
+        uint256 resultWithSwapTax = (result * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
+        uint256 resultWithSellTax = (resultWithSwapTax * (100 - sellTax)) / 100;
+        return resultWithSellTax;
     }
 
     function getInputAmount(
@@ -182,11 +182,22 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         token.transfer(swapTaxPool, fee);
 
         address[] memory path = getPath(outTokenAddr, false);
-        uint256[] memory result;
         if (outTokenAddr == uniswapV2Router.WAVAX()) {
-            result = uniswapV2Router.swapExactTokensForAVAX(amountIn - fee, amountOutMin, path, receiver, deadline);
+            uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
+                amountIn - fee,
+                amountOutMin,
+                path,
+                receiver,
+                deadline
+            );
         } else {
-            result = uniswapV2Router.swapExactTokensForTokens(amountIn - fee, amountOutMin, path, receiver, deadline);
+            uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn - fee,
+                amountOutMin,
+                path,
+                receiver,
+                deadline
+            );
         }
         uint256 amountOut = getOutputAmount(false, outTokenAddr, amountIn);
         emit Swapped(tokenAddress, amountIn, outTokenAddr, amountOut);

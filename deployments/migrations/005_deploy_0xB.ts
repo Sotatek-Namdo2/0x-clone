@@ -64,7 +64,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   await execute("Staking", { from: deployer, log: true }, "setToken", ZeroXBlock.address);
   await execute("ZeroXBlock", { from: deployer, log: true }, "setContManagement", CONTRewardManagement.address);
   await execute("ZeroXBlock", { from: deployer, log: true }, "setLiquidityRouter", LiquidityRouter.address);
-  await execute("ZeroXBlock", { from: deployer, log: true }, "changeSellTaxRate", 15);
+  await execute("ZeroXBlock", { from: deployer, log: true }, "changeSellTaxRate", 10);
 };
 
 func.tags = ["ZeroXBlock"];
