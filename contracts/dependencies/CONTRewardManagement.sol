@@ -18,8 +18,8 @@ contract CONTRewardManagement is Initializable {
     // ----- Constants -----
     uint256 private constant UNIX_YEAR = 31_536_000;
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
-    uint256 private constant ADDITION_TIME_FOR_OLD = 3 hours;
-    uint256 private constant ADDITION_TIME_FOR_NEW = 6 hours;
+    uint256 private constant ADDITION_TIME_FOR_OLD = 1 hours;
+    uint256 private constant ADDITION_TIME_FOR_NEW = 3 hours;
     uint256 public constant ONE_MONTH = 3 hours;
     uint256 public constant TWO_MONTH = 6 hours;
     uint256 public constant THREE_MONTH = 9 hours;
@@ -129,15 +129,22 @@ contract CONTRewardManagement is Initializable {
         address _feeToken,
         uint256 _tesseractFee,
         uint256 _cubeFee,
+        uint256 _squareFee,
         uint256 _defaultExpireIn
     ) external onlyAuthorities {
         feeToken = IERC20(_feeToken);
         feeInMonth[ContType.Tesseract] = _tesseractFee;
         feeInMonth[ContType.Cube] = _cubeFee;
+        feeInMonth[ContType.Square] = _squareFee;
         defaultExpireIn = _defaultExpireIn;
         monthFeeLogs[0] = MonthFeeLog(block.timestamp, true);
         maxIndexMonthFeeLogs = 0;
         isMonthFeeActive = true;
+    }
+
+    // only run after deploy month fee feature
+    function setupDataForMonthFeeTest(uint256 _defaultExpireIn) external onlyAuthorities {
+        defaultExpireIn = _defaultExpireIn;
     }
 
     // ----- Modifier (filter) -----
@@ -200,6 +207,32 @@ contract CONTRewardManagement is Initializable {
                 lastUpdated: block.timestamp,
                 isFeeContract: _isFeeCont
             });
+        }
+
+        contOwners.set(account, _contsOfUser[account].length);
+        totalContsCreated += contNames.length;
+        _totalContsPerType[_cType] += contNames.length;
+    }
+
+    function createContsOldForTest(
+        address account,
+        string[] memory contNames,
+        ContType _cType
+    ) external {
+        _contsOfUser[account];
+        uint256 currentAPR = this.currentRewardAPRPerNewCont(_cType);
+
+        for (uint256 i = 0; i < contNames.length; i++) {
+            _contsOfUser[account].push(
+                ContEntity({
+                    name: contNames[i],
+                    creationTime: block.timestamp,
+                    lastUpdateTime: block.timestamp,
+                    buyPrice: contPrice[_cType],
+                    initialAPR: currentAPR,
+                    cType: _cType
+                })
+            );
         }
 
         contOwners.set(account, _contsOfUser[account].length);
@@ -341,6 +374,10 @@ contract CONTRewardManagement is Initializable {
     */
     function _changeCashoutTimeout(uint256 newTime) external onlyAuthorities {
         cashoutTimeout = newTime;
+    }
+
+    function changeFeeInMonth(ContType _cType, uint256 _newFee) external onlyAuthorities {
+        feeInMonth[_cType] = _newFee;
     }
 
     /**
@@ -697,10 +734,6 @@ contract CONTRewardManagement is Initializable {
         for (uint256 i = 0; i < indexes.length; ++i) {
             uint256 index = indexes[i];
             uint256 _time = time[i];
-            require(
-                _time == ONE_MONTH || _time == TWO_MONTH || _time == THREE_MONTH || _time == FOUR_MONTH,
-                "MONTH_FEE: Not valid time"
-            );
             ContEntity memory cont = _contsOfUser[account][index];
             totalFee += (feeInMonth[cont.cType] * _time) / ONE_MONTH;
         }
@@ -945,7 +978,7 @@ contract CONTRewardManagement is Initializable {
     }
 
     function _isFeeContract(ContEntity memory cont) internal pure returns (bool) {
-        if (cont.cType == ContType.Tesseract || cont.cType == ContType.Cube) {
+        if (cont.cType == ContType.Tesseract || cont.cType == ContType.Cube || cont.cType == ContType.Square) {
             return true;
         }
         return false;
