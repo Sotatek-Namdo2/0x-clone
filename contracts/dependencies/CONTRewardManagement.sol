@@ -501,7 +501,7 @@ contract CONTRewardManagement is Initializable {
 
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
-        uint256 total = contRewardInInterval(conts[0], conts[0].creationTime, conts[0].lastUpdateTime);
+        total = contRewardInInterval(conts[0], conts[0].creationTime, conts[0].lastUpdateTime);
         list = uint2str(total);
         string memory separator = "#";
         for (uint256 i = 1; i < contsCount; i++) {
