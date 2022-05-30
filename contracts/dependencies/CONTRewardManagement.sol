@@ -18,10 +18,13 @@ contract CONTRewardManagement is Initializable {
     // ----- Constants -----
     uint256 private constant UNIX_YEAR = 31_536_000;
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
-    uint256 private constant SEVEN_DAY = 7 hours;
-    uint256 public constant ONE_MONTH = 1 days;
-    uint256 public constant THREE_MONTH = 3 days;
-    // uint256
+    uint256 private constant ADDITION_TIME_FOR_OLD = 1 hours;
+    uint256 private constant ADDITION_TIME_FOR_NEW = 3 hours;
+    uint256 public constant ONE_MONTH = 3 hours;
+    uint256 public constant TWO_MONTH = 6 hours;
+    uint256 public constant THREE_MONTH = 9 hours;
+    uint256 public constant FOUR_MONTH = 12 hours;
+    uint256 public constant MAXUINT256 = type(uint256).max;
 
     // ----- Cont Structs -----
     struct ContEntity {
@@ -36,6 +39,7 @@ contract CONTRewardManagement is Initializable {
     struct AdditionalDataEntity {
         uint256 expireIn;
         uint256 lastUpdated;
+        bool isFeeContract;
     }
 
     struct FullDataEntity {
@@ -47,6 +51,9 @@ contract CONTRewardManagement is Initializable {
         ContType cType;
         uint256 expireIn;
         uint256 lastUpdated;
+        bool isFeeContract;
+        uint256 reward;
+        uint256 claimed;
     }
 
     struct MonthFeeLog {
@@ -79,8 +86,6 @@ contract CONTRewardManagement is Initializable {
     mapping(ContType => uint256) private _totalContsPerType;
     mapping(address => mapping(uint256 => bool)) public _brokeevenContract;
 
-    // upgrade for month fee
-
     // Adding feature - fee by month
     // using ContEntity[] => cannot update field into ContEntity struct (because using proxy
 
@@ -89,9 +94,8 @@ contract CONTRewardManagement is Initializable {
     bool public isMonthFeeActive = true;
     uint256 public defaultExpireIn;
     mapping(ContType => uint256) public feeInMonth;
-    mapping(address => mapping(uint256 => AdditionalDataEntity)) public additionalDataContract;
-    mapping(address => mapping(ContType => uint256)) public userAsset;
     // using mapping instead of array to easy scale with proxy
+    mapping(address => mapping(uint256 => AdditionalDataEntity)) public additionalDataContract;
     mapping(uint256 => MonthFeeLog) public monthFeeLogs;
     uint256 public maxIndexMonthFeeLogs;
 
@@ -123,18 +127,19 @@ contract CONTRewardManagement is Initializable {
     // only run after deploy month fee feature
     function setupDataForMonthFee(
         address _feeToken,
-        uint256 _decreaseFeePercent,
         uint256 _tesseractFee,
         uint256 _cubeFee,
+        uint256 _squareFee,
         uint256 _defaultExpireIn
     ) external onlyAuthorities {
         feeToken = IERC20(_feeToken);
-        decreaseFeePercent = _decreaseFeePercent;
         feeInMonth[ContType.Tesseract] = _tesseractFee;
         feeInMonth[ContType.Cube] = _cubeFee;
+        feeInMonth[ContType.Square] = _squareFee;
         defaultExpireIn = _defaultExpireIn;
         monthFeeLogs[0] = MonthFeeLog(block.timestamp, true);
         maxIndexMonthFeeLogs = 0;
+        isMonthFeeActive = true;
     }
 
     // ----- Modifier (filter) -----
@@ -176,9 +181,6 @@ contract CONTRewardManagement is Initializable {
         string[] memory contNames,
         ContType _cType
     ) external onlyToken {
-        if (isMonthFeeActive) {
-            _cleanAllExpiredOrUpdateCont(account);
-        }
         _contsOfUser[account];
         uint256 currentAPR = this.currentRewardAPRPerNewCont(_cType);
 
@@ -194,36 +196,41 @@ contract CONTRewardManagement is Initializable {
                 })
             );
             uint256 index = _contsOfUser[account].length - 1;
+            bool _isFeeCont = isFeeContract(account, index);
             additionalDataContract[account][index] = AdditionalDataEntity({
-                expireIn: block.timestamp + ONE_MONTH,
-                lastUpdated: block.timestamp
+                expireIn: block.timestamp + ADDITION_TIME_FOR_NEW,
+                lastUpdated: block.timestamp,
+                isFeeContract: _isFeeCont
             });
         }
 
         contOwners.set(account, _contsOfUser[account].length);
         totalContsCreated += contNames.length;
         _totalContsPerType[_cType] += contNames.length;
-        userAsset[account][_cType] += contNames.length;
     }
 
-    /// @notice reduce chosen cont reward to 0 and return amount of rewards claimed so token contract can send tokens
-    /// @param account account of owner
-    /// @param _contIndex contract index
-    /// @return rewardsTotal total amount of rewards claimed
+    // / @notice reduce chosen cont reward to 0 and return amount of rewards claimed so token contract can send tokens
+    // / @param account account of owner
+    // / @param _contIndex contract index
+    // / @return rewardsTotal total amount of rewards claimed
     function _cashoutContReward(address account, uint256 _contIndex) external onlyToken returns (uint256, ContType) {
         if (isMonthFeeActive) {
-            _cleanExpiredOrUpdateCont(account, _contIndex);
+            _updateCont(account, _contIndex);
+            AdditionalDataEntity memory data = additionalDataContract[account][_contIndex];
+            if (data.isFeeContract && data.expireIn < block.timestamp) {
+                revert("Need extend contract");
+            }
         }
         ContEntity[] storage conts = _contsOfUser[account];
         require(_contIndex >= 0 && _contIndex < conts.length, "CONT: Index Error");
         ContEntity storage cont = conts[_contIndex];
         require(claimable(cont.lastUpdateTime), "CASHOUT ERROR: You have to wait before claiming this cont.");
         uint256 currentTstamp = block.timestamp;
-        uint256 rewardCont = contRewardInIntervalV2(_contIndex, cont, cont.lastUpdateTime, currentTstamp);
+        uint256 rewardCont = contRewardInInterval(cont, cont.lastUpdateTime, currentTstamp);
         cont.lastUpdateTime = currentTstamp;
 
         if (!_brokeevenContract[account][_contIndex]) {
-            if (cont.buyPrice <= contRewardInIntervalV2(_contIndex, cont, cont.creationTime, block.timestamp)) {
+            if (cont.buyPrice <= contRewardInInterval(cont, cont.creationTime, block.timestamp)) {
                 _brokeevenContract[account][_contIndex] = true;
                 emit BreakevenChanged(cont.cType, 1);
             }
@@ -244,9 +251,6 @@ contract CONTRewardManagement is Initializable {
             uint256
         )
     {
-        if (isMonthFeeActive) {
-            _cleanAllExpiredOrUpdateCont(account);
-        }
         ContEntity[] storage conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         require(contsCount > 0, "CASHOUT ERROR: You don't have conts to cash-out");
@@ -257,15 +261,22 @@ contract CONTRewardManagement is Initializable {
         uint8[3] memory newBreakeven = [0, 0, 0];
 
         for (uint256 i = 0; i < contsCount; i++) {
+            if (isMonthFeeActive) {
+                _updateCont(account, i);
+                AdditionalDataEntity memory data = additionalDataContract[account][i];
+                if (data.isFeeContract && data.expireIn < block.timestamp) {
+                    continue;
+                }
+            }
             _cont = conts[i];
-            uint256 contReward = contRewardInIntervalV2(i, _cont, _cont.lastUpdateTime, block.timestamp);
+            uint256 contReward = contRewardInInterval(_cont, _cont.lastUpdateTime, block.timestamp);
             rewardsTotal += contReward;
             typeTotal[uint8(_cont.cType)] += contReward;
             _cont.lastUpdateTime = block.timestamp;
 
             if (
                 !_brokeevenContract[account][i] &&
-                _cont.buyPrice <= contRewardInIntervalV2(i, _cont, _cont.creationTime, block.timestamp)
+                _cont.buyPrice <= contRewardInInterval(_cont, _cont.creationTime, block.timestamp)
             ) {
                 _brokeevenContract[account][i] = true;
                 uint8 ct = uint8(_cont.cType);
@@ -280,17 +291,15 @@ contract CONTRewardManagement is Initializable {
         return (rewardsTotal, typeTotal[0], typeTotal[1], typeTotal[2]);
     }
 
-    function extendContract(uint256 time, uint256[] memory indexes) external {
-        require(time == ONE_MONTH || time == THREE_MONTH, "MONTH_FEE: Not valid time");
-        uint256 fee = getExtendContractFee(time, indexes);
+    function extendContract(uint256[] memory time, uint256[] memory indexes) external {
+        require(isMonthFeeActive, "MONTH_FEE: Not enable");
+        uint256 fee = getExtendContractFee(msg.sender, time, indexes);
         require(feeToken.transferFrom(msg.sender, address(this), fee), "MONTH_FEE: Not valid");
 
-        // extend expire in
         for (uint256 i = 0; i < indexes.length; ++i) {
             AdditionalDataEntity memory additionData = getExpireIn(msg.sender, indexes[i]);
-            //            AdditionalDataEntity storage additionData = additionalDataContract[msg.sender][indexes[i]];
-            require(additionData.expireIn >= block.timestamp, "MONTH_FEE: Contract has been expired");
-            additionData.expireIn += time;
+            require(additionData.isFeeContract, "MONTH_FEE: Not valid type");
+            additionData.expireIn += time[i];
             additionData.lastUpdated = block.timestamp;
             additionalDataContract[msg.sender][indexes[i]] = additionData;
         }
@@ -302,11 +311,8 @@ contract CONTRewardManagement is Initializable {
         @param newPrice new price per contract (0xB)
     */
     function _changeContPrice(ContType _cType, uint256 newPrice) external onlyAuthorities {
+        require(newPrice > 0, "MONTH_FEE: NOT VALID");
         contPrice[_cType] = newPrice;
-    }
-
-    function changeDecreaseFeePercent(uint256 _decreaseFeePercent) external onlyAuthorities {
-        decreaseFeePercent = _decreaseFeePercent;
     }
 
     /**
@@ -331,21 +337,16 @@ contract CONTRewardManagement is Initializable {
         aprChangesHistory[_cType].pop();
     }
 
-    /// @notice only used when admin makes mistake about APR change: reset every APR changes/
-    /// @param _cType type of contract to pop last change
-    function _resetAllAPRChange(ContType _cType, uint256 _initialPrice) external onlyAuthorities {
-        initRewardAPRPerCont[_cType] = _initialPrice;
-        uint256 initialTstamp = aprChangesHistory[_cType][0].timestamp;
-        delete aprChangesHistory[_cType];
-        aprChangesHistory[_cType].push(APRChangesEntry({ timestamp: initialTstamp, reducedPercentage: 0 }));
-    }
-
     /**
         @notice change cashout timeout. User cannot claim 2 times in one interval of newTime.
         @param newTime new length of interval
     */
     function _changeCashoutTimeout(uint256 newTime) external onlyAuthorities {
         cashoutTimeout = newTime;
+    }
+
+    function changeFeeInMonth(ContType _cType, uint256 _newFee) external onlyAuthorities {
+        feeInMonth[_cType] = _newFee;
     }
 
     /**
@@ -380,37 +381,21 @@ contract CONTRewardManagement is Initializable {
         require(feeToken.transfer(_user, amount), "MONTH_FEE_WITHDRAW: INVALID");
     }
 
-    function _cleanExpiredOrUpdateCont(address account, uint256 _contIndex) private {
-        AdditionalDataEntity memory additionalData = getExpireIn(account, _contIndex);
-        if (additionalData.expireIn >= block.timestamp) {
-            additionalDataContract[account][_contIndex] = additionalData;
+    function _updateCont(address account, uint256 _contIndex) private {
+        if (!isFeeContract(account, _contIndex)) {
             return;
         }
-        ContEntity memory currentCont = _contsOfUser[account][_contIndex];
-        uint256 maxIndex = _contsOfUser[account].length - 1;
-        _contsOfUser[account][_contIndex] = _contsOfUser[account][maxIndex];
-        additionalDataContract[account][_contIndex] = additionalDataContract[account][maxIndex];
-        _contsOfUser[account].pop();
-        delete additionalDataContract[account][maxIndex];
-
-        contOwners.set(account, _contsOfUser[account].length);
-        totalContsCreated -= 1;
-        _totalContsPerType[currentCont.cType] -= 1;
-        userAsset[account][currentCont.cType] -= 1;
+        AdditionalDataEntity memory additionalData = getExpireIn(account, _contIndex);
+        additionalDataContract[account][_contIndex] = additionalData;
     }
 
-    function _cleanAllExpiredOrUpdateCont(address account) private {
+    function _updateAllCont(address account) private {
         ContEntity[] memory listCont = _contsOfUser[account];
         if (listCont.length == 0) {
             return;
         }
-        uint256 maxIndex = listCont.length - 1;
         for (uint256 i = 0; i < listCont.length; ++i) {
-            if (i > maxIndex) {
-                break;
-            }
-            _cleanExpiredOrUpdateCont(account, i);
-            maxIndex = _contsOfUser[account].length - 1;
+            _updateCont(account, i);
         }
     }
 
@@ -418,7 +403,7 @@ contract CONTRewardManagement is Initializable {
 
     function isExpiredCont(address account, uint256 index) public view returns (bool) {
         AdditionalDataEntity memory additionalData = getExpireIn(account, index);
-        if (additionalData.expireIn < block.timestamp) {
+        if (additionalData.expireIn < block.timestamp && additionalData.isFeeContract) {
             return true;
         }
         return false;
@@ -459,7 +444,7 @@ contract CONTRewardManagement is Initializable {
 
     /**
         @notice query total reward amount of an address in every contract
-        @dev iterate through every contract. Use `contRewardInIntervalV2` to calculate reward in an interval
+        @dev iterate through every contract. Use `contRewardInInterval` to calculate reward in an interval
         from user last claims to now.
         @param account address to query
         @return rewardAmount total amount of reward available for account, tax included
@@ -473,8 +458,11 @@ contract CONTRewardManagement is Initializable {
         uint256 contsCount = conts.length;
 
         for (uint256 i = 0; i < contsCount; i++) {
+            if (isExpiredCont(account, i)) {
+                continue;
+            }
             ContEntity memory _cont = conts[i];
-            rewardAmount += contRewardInIntervalV2(i, _cont, _cont.lastUpdateTime, block.timestamp);
+            rewardAmount += contRewardInInterval(_cont, _cont.lastUpdateTime, block.timestamp);
         }
 
         return rewardAmount;
@@ -482,7 +470,7 @@ contract CONTRewardManagement is Initializable {
 
     /**
         @notice query reward amount of one contract
-        @dev use `contRewardInIntervalV2` to calculate reward in an interval
+        @dev use `contRewardInInterval` to calculate reward in an interval
         from user last claims to now.
         @param account address to query
         @param _contIndex index of contract in user's list
@@ -492,31 +480,34 @@ contract CONTRewardManagement is Initializable {
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 numberOfConts = conts.length;
         require(_contIndex >= 0 && _contIndex < numberOfConts, "CONT: Cont index is improper");
+        if (isExpiredCont(account, _contIndex)) {
+            return 0;
+        }
         ContEntity memory cont = conts[_contIndex];
-        uint256 rewardCont = contRewardInIntervalV2(_contIndex, cont, cont.lastUpdateTime, block.timestamp);
+        uint256 rewardCont = contRewardInInterval(cont, cont.lastUpdateTime, block.timestamp);
         return rewardCont;
     }
 
     /**
         @notice query claimed amount of an address in every contract
-        @dev iterate through every contract. Use `contRewardInIntervalV2` to calculate reward in an interval
+        @dev iterate through every contract. Use `contRewardInInterval` to calculate reward in an interval
         from contract creation time to latest claim.
         @param account address to query
         @return total total amount of reward available for account, tax included
         @return list a packed list of every entries
     */
-    function _getClaimedAmountOf(address account) external view returns (uint256 total, string memory list) {
+    function _getClaimedAmountOf(address account) public view returns (uint256 total, string memory list) {
         if (!isContOwner(account)) return (0, "");
 
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
-        uint256 rw = contRewardInIntervalV2(0, conts[0], conts[0].creationTime, conts[0].lastUpdateTime);
-        total = rw;
-        list = uint2str(rw);
+        uint256 total = contRewardInInterval(conts[0], conts[0].creationTime, conts[0].lastUpdateTime);
+        list = uint2str(total);
         string memory separator = "#";
         for (uint256 i = 1; i < contsCount; i++) {
+            uint256 _claimed;
             ContEntity memory _cont = conts[i];
-            uint256 _claimed = contRewardInIntervalV2(i, _cont, _cont.creationTime, _cont.lastUpdateTime);
+            _claimed = contRewardInInterval(_cont, _cont.creationTime, _cont.lastUpdateTime);
             total += _claimed;
             list = string(abi.encodePacked(list, separator, uint2str(_claimed)));
         }
@@ -524,18 +515,18 @@ contract CONTRewardManagement is Initializable {
 
     /**
         @notice query claimed amount of one contract
-        @dev use `contRewardInIntervalV2` to calculate claimed in an interval
+        @dev use `contRewardInInterval` to calculate claimed in an interval
         from contract creationTime to latest claim.
         @param account address to query
         @param _contIndex index of contract in user's list
         @return rewardCont amount of reward available for selected contract
     */
-    function _getClaimedAmountOfIndex(address account, uint256 _contIndex) external view returns (uint256 rewardCont) {
+    function _getClaimedAmountOfIndex(address account, uint256 _contIndex) public view returns (uint256 rewardCont) {
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 numberOfConts = conts.length;
         require(_contIndex >= 0 && _contIndex < numberOfConts, "CONT: Cont index is improper");
         ContEntity memory cont = conts[_contIndex];
-        rewardCont = contRewardInIntervalV2(_contIndex, cont, cont.creationTime, cont.lastUpdateTime);
+        rewardCont = contRewardInInterval(cont, cont.creationTime, cont.lastUpdateTime);
     }
 
     /**
@@ -654,18 +645,18 @@ contract CONTRewardManagement is Initializable {
         ContEntity[] memory conts = _contsOfUser[account];
         uint256 contsCount = conts.length;
         uint256 currentTstamp = block.timestamp;
-        string memory _rewardsAvailable = uint2str(
-            contRewardInIntervalV2(0, conts[0], conts[0].lastUpdateTime, currentTstamp)
-        );
+        uint256 rewardFirstIndex;
+        if (!isExpiredCont(account, 0)) {
+            rewardFirstIndex = contRewardInInterval(conts[0], conts[0].lastUpdateTime, currentTstamp);
+        }
+        string memory _rewardsAvailable = uint2str(rewardFirstIndex);
         string memory separator = "#";
         for (uint256 i = 1; i < contsCount; i++) {
-            _rewardsAvailable = string(
-                abi.encodePacked(
-                    _rewardsAvailable,
-                    separator,
-                    uint2str(contRewardInIntervalV2(i, conts[i], conts[i].lastUpdateTime, currentTstamp))
-                )
-            );
+            uint256 reward;
+            if (!isExpiredCont(account, i)) {
+                reward = contRewardInInterval(conts[i], conts[i].lastUpdateTime, currentTstamp);
+            }
+            _rewardsAvailable = string(abi.encodePacked(_rewardsAvailable, separator, uint2str(reward)));
         }
         return _rewardsAvailable;
     }
@@ -701,19 +692,19 @@ contract CONTRewardManagement is Initializable {
         return contOwners.get(account);
     }
 
-    function getExtendContractFee(uint256 time, uint256[] memory indexes) public view returns (uint256) {
+    function getExtendContractFee(
+        address account,
+        uint256[] memory time,
+        uint256[] memory indexes
+    ) public view returns (uint256) {
+        require(time.length == indexes.length, "INPUT: INVALID");
         uint256 totalFee;
-        uint256[] memory numberOfContType;
-        numberOfContType[(uint256)(ContType.Tesseract)] = getNumberOfConts(msg.sender, ContType.Tesseract);
-        numberOfContType[(uint256)(ContType.Cube)] = getNumberOfConts(msg.sender, ContType.Cube);
 
         for (uint256 i = 0; i < indexes.length; ++i) {
             uint256 index = indexes[i];
-            ContEntity memory cont = _contsOfUser[msg.sender][index];
-            uint256 totalDecreasePercent = decreaseFeePercent * numberOfContType[(uint256)(cont.cType)];
-            uint256 feeForContOneMonth = (feeInMonth[cont.cType] * (HUNDRED_PERCENT - totalDecreasePercent)) /
-                HUNDRED_PERCENT;
-            totalFee += (feeForContOneMonth * time) / ONE_MONTH;
+            uint256 _time = time[i];
+            ContEntity memory cont = _contsOfUser[account][index];
+            totalFee += (feeInMonth[cont.cType] * _time) / ONE_MONTH;
         }
         return totalFee;
     }
@@ -822,18 +813,6 @@ contract CONTRewardManagement is Initializable {
         return result;
     }
 
-    function contRewardInIntervalV2(
-        uint256 indexCont,
-        ContEntity memory cont,
-        uint256 leftTstamp,
-        uint256 rightTstamp
-    ) private view returns (uint256) {
-        if (isMonthFeeActive && isExpiredCont(msg.sender, indexCont)) {
-            return 0;
-        }
-        return contRewardInInterval(cont, leftTstamp, rightTstamp);
-    }
-
     /// @notice mathematically count number of intervals has passed between 2 tstamps
     /// @param input end timestamp
     /// @param creatime start timestamp
@@ -884,9 +863,13 @@ contract CONTRewardManagement is Initializable {
     }
 
     function getExpireIn(address user, uint256 index) public view returns (AdditionalDataEntity memory) {
+        if (!isFeeContract(user, index)) {
+            return AdditionalDataEntity(0, 0, false);
+        }
         AdditionalDataEntity memory additionalData = additionalDataContract[user][index];
         if (additionalData.expireIn == 0) {
             additionalData.expireIn = defaultExpireIn;
+            additionalData.lastUpdated = defaultExpireIn - ADDITION_TIME_FOR_OLD;
         }
         uint256 totalDelay = 0;
         for (uint256 i = 0; i <= maxIndexMonthFeeLogs; ++i) {
@@ -908,28 +891,15 @@ contract CONTRewardManagement is Initializable {
         }
 
         additionalData.expireIn += totalDelay;
+        additionalData.isFeeContract = true;
 
         return additionalData;
     }
 
-    function getNumberOfConts(address account, ContType _cType) public view returns (uint256) {
-        ContEntity[] memory listConts = _contsOfUser[account];
-        uint256 count;
-        for (uint256 i = 0; i < listConts.length; ++i) {
-            if (listConts[i].cType != _cType) {
-                continue;
-            }
-            AdditionalDataEntity memory data = getExpireIn(account, i);
-            if (data.expireIn >= block.timestamp) {
-                ++count;
-            }
-        }
-        return count;
-    }
-
-    function getFullDataCont(address user) public view returns (FullDataEntity[] memory) {
-        FullDataEntity[] memory fullData;
+    function getFullDataAllCont(address user) public view returns (FullDataEntity[] memory) {
         ContEntity[] memory listCont = _contsOfUser[user];
+        FullDataEntity[] memory fullData = new FullDataEntity[](listCont.length);
+
         for (uint256 i = 0; i < listCont.length; ++i) {
             ContEntity memory cont = listCont[i];
             AdditionalDataEntity memory additional = getExpireIn(user, i);
@@ -941,10 +911,45 @@ contract CONTRewardManagement is Initializable {
                 cont.buyPrice,
                 cont.cType,
                 additional.expireIn,
-                additional.lastUpdated
+                additional.lastUpdated,
+                additional.isFeeContract,
+                contRewardInInterval(cont, cont.lastUpdateTime, block.timestamp),
+                _getClaimedAmountOfIndex(user, i)
             );
             fullData[i] = item;
         }
         return fullData;
+    }
+
+    function getFullDataCont(address user, uint256 index) public view returns (FullDataEntity memory) {
+        ContEntity memory cont = _contsOfUser[user][index];
+
+        AdditionalDataEntity memory additional = getExpireIn(user, index);
+        FullDataEntity memory item = FullDataEntity(
+            cont.name,
+            cont.creationTime,
+            cont.lastUpdateTime,
+            cont.initialAPR,
+            cont.buyPrice,
+            cont.cType,
+            additional.expireIn,
+            additional.lastUpdated,
+            additional.isFeeContract,
+            contRewardInInterval(cont, cont.lastUpdateTime, block.timestamp),
+            _getClaimedAmountOfIndex(user, index)
+        );
+        return item;
+    }
+
+    function isFeeContract(address user, uint256 index) public view returns (bool) {
+        ContEntity memory cont = _contsOfUser[user][index];
+        return _isFeeContract(cont);
+    }
+
+    function _isFeeContract(ContEntity memory cont) internal pure returns (bool) {
+        if (cont.cType == ContType.Tesseract || cont.cType == ContType.Cube || cont.cType == ContType.Square) {
+            return true;
+        }
+        return false;
     }
 }
