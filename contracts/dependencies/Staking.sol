@@ -356,6 +356,11 @@ contract Staking is Initializable {
     }
 
     // ----- Admin WRITE functions -----
+    function updateAdmin0xB(address payable newAdmin) external onlyAuthorities {
+        require(newAdmin != address(0), "UPD_ADMIN: zero addr");
+        admin0xB = newAdmin;
+    }
+
     /**
         @notice set address of 0xB token
         @param _token address of 0xB

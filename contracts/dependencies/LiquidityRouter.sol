@@ -23,6 +23,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
     uint256 public swapTaxFee;
     address public swapTaxPool;
 
+    uint256 public sellTax;
+
+    // ----- Customs errors -----
+    error InvalidSellTax(uint256 _sellTax);
+
     // ----- Constructor -----
     function initialize(
         address _router,
@@ -60,9 +65,15 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uint256 inputAmount
     ) public view returns (uint256) {
         address[] memory path = getPath(targetToken, is0xBOut);
+        if (is0xBOut) {
+            inputAmount = (inputAmount * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
+        } else {
+            uint256 inputAmountWithSwapTax = (inputAmount * (HUNDRED_PERCENT + swapTaxFee)) / HUNDRED_PERCENT;
+            uint256 inputAmountWithSellTax = (inputAmountWithSwapTax * (100 - sellTax)) / 100;
+            inputAmount = inputAmountWithSellTax;
+        }
         uint256[] memory amountsOut = uniswapV2Router.getAmountsOut(inputAmount, path);
         uint256 result = amountsOut[amountsOut.length - 1];
-        result = (result * (HUNDRED_PERCENT - swapTaxFee)) / HUNDRED_PERCENT;
         return result;
     }
 
@@ -83,6 +94,11 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
     }
 
     // ----- External WRITE functions -----
+    function updateAdmin0xB(address payable newAdmin) external onlyAuthorities {
+        require(newAdmin != address(0), "UPD_ADMIN: zero addr");
+        admin0xB = newAdmin;
+    }
+
     function updateSwapTaxPool(address payable newPool) external onlyAuthorities {
         require(newPool != address(0), "UPD_WALL: zero addr");
         swapTaxPool = newPool;
@@ -119,23 +135,40 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         uniswapV2Pair = _uniswapV2Pair;
     }
 
+    function setSellTax(uint256 _sellTax) external onlyAuthorities {
+        if (_sellTax >= 100) {
+            revert InvalidSellTax(_sellTax);
+        }
+        sellTax = _sellTax;
+    }
+
     // Only use to fund wallets
     function swapExact0xBForTokenNoFee(
         address receiver,
         address outTokenAddr,
         uint256 amountIn
-    ) external onlyAuthorities returns (uint256) {
+    ) external onlyAuthorities {
         if (token.allowance(address(this), routerAddress) < amountIn) {
             token.approve(routerAddress, uint256(2**256 - 1));
         }
         address[] memory path = getPath(outTokenAddr, false);
-        uint256[] memory result;
         if (outTokenAddr == uniswapV2Router.WAVAX()) {
-            result = uniswapV2Router.swapExactTokensForAVAX(amountIn, 0, path, receiver, block.timestamp);
+            uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
+                amountIn,
+                0,
+                path,
+                receiver,
+                block.timestamp
+            );
         } else {
-            result = uniswapV2Router.swapExactTokensForTokens(amountIn, 0, path, receiver, block.timestamp);
+            uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn,
+                0,
+                path,
+                receiver,
+                block.timestamp
+            );
         }
-        return result[result.length - 1];
     }
 
     function swapExact0xBForToken(
@@ -154,14 +187,26 @@ contract LiquidityRouter is Initializable, PaymentSplitterUpgradeable {
         token.transfer(swapTaxPool, fee);
 
         address[] memory path = getPath(outTokenAddr, false);
-        uint256[] memory result;
         if (outTokenAddr == uniswapV2Router.WAVAX()) {
-            result = uniswapV2Router.swapExactTokensForAVAX(amountIn - fee, amountOutMin, path, receiver, deadline);
+            uniswapV2Router.swapExactTokensForAVAXSupportingFeeOnTransferTokens(
+                amountIn - fee,
+                amountOutMin,
+                path,
+                receiver,
+                deadline
+            );
         } else {
-            result = uniswapV2Router.swapExactTokensForTokens(amountIn - fee, amountOutMin, path, receiver, deadline);
+            uniswapV2Router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                amountIn - fee,
+                amountOutMin,
+                path,
+                receiver,
+                deadline
+            );
         }
-        emit Swapped(tokenAddress, amountIn, outTokenAddr, result[result.length - 1]);
-        return (result[result.length - 1], fee);
+        uint256 amountOut = getOutputAmount(false, outTokenAddr, amountIn);
+        emit Swapped(tokenAddress, amountIn, outTokenAddr, amountOut);
+        return (amountOut, fee);
     }
 
     function swap0xBForExactToken(

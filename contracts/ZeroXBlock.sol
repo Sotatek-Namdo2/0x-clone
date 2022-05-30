@@ -324,6 +324,7 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         if (newVal >= 100) {
             revert InvalidSellTax(newVal);
         }
+        _liqRouter.setSellTax(newVal);
         sellTax = newVal;
     }
 
@@ -350,9 +351,20 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
         sellTaxTargetAddress = newVal;
     }
 
+    /**
+        @notice change uniswapV2Pair
+        @param newVal new uniswapV2Pair address
+    */
+    function changeUniswapV2PairAddress(address newVal) external onlyOwner {
+        if (newVal == address(0)) {
+            revert InvalidAddress(newVal);
+        }
+        uniswapV2Pair = newVal;
+    }
+
     // ***** Private helpers functions *****
     /// @notice override ERC-20 transfer function to check blacklisted address and prevent malicious actions
-    /// also check the whitelisted address and apply sell tax
+    /// also check the sell tax whitelisted address and apply sell tax when user add liquidity to traderjoe pool
     function _transfer(
         address from,
         address to,
@@ -360,10 +372,10 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
     ) internal override {
         require(!_isBlacklisted[from] && !_isBlacklisted[to], "ERC20: Blacklisted address");
         uint256 sellTaxAmount = (amount * sellTax) / 100;
-        if (sellTaxAmount > 0 && !_isSellTaxWhitelisted[from]) {
+        if (sellTaxAmount > 0 && !_isSellTaxWhitelisted[from] && to == uniswapV2Pair) {
             super._transfer(from, sellTaxTargetAddress, sellTaxAmount);
         }
-        uint256 amountWithTax = _isSellTaxWhitelisted[from] ? amount : amount - sellTaxAmount;
+        uint256 amountWithTax = to != uniswapV2Pair ? amount : amount - sellTaxAmount;
         super._transfer(from, to, amountWithTax);
     }
 
@@ -386,7 +398,8 @@ contract ZeroXBlock is Initializable, ERC20Upgradeable, OwnableUpgradeable, Paym
             emit Funded(targetWalletName, cType, token, amount);
         } else {
             _transfer(sender, address(_liqRouter), amount);
-            uint256 amountOut = _liqRouter.swapExact0xBForTokenNoFee(targetWalletAddress, token, amount);
+            _liqRouter.swapExact0xBForTokenNoFee(targetWalletAddress, token, amount);
+            uint256 amountOut = (_liqRouter.getOutputAmount(true, token, amount) * sellTax) / 100;
             emit Funded(targetWalletName, cType, token, amountOut);
         }
     }

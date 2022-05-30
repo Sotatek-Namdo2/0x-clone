@@ -104,16 +104,16 @@ $ yarn clean
 
 ### Deployment
 
-At the moment, testnet deployment is available on Avalanche Fuji Testnet:
+At the moment, testnet deployment is available on Ethereum Rinkeby Testnet:
 
 ```sh
-$ yarn hardhat --network fuji deploy
+$ yarn hardhat --network rinkeby deploy
 ```
 
 Verify code and display functions on testnet UI:
 
 ```sh
-yarn hardhat etherscan-verify --api-key <your-api-key> --network fuji --license MIT
+yarn hardhat etherscan-verify --api-key <your-api-key> --network rinkeby --license MIT
 ```
 
 The API keys can be found on API-KEYS on snowtrace.io account settings. Create an account
