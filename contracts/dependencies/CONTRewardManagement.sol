@@ -142,11 +142,6 @@ contract CONTRewardManagement is Initializable {
         isMonthFeeActive = true;
     }
 
-    // only run after deploy month fee feature
-    function setupDataForMonthFeeTest(uint256 _defaultExpireIn) external onlyAuthorities {
-        defaultExpireIn = _defaultExpireIn;
-    }
-
     // ----- Modifier (filter) -----
     modifier onlyAuthorities() {
         require(msg.sender == token || msg.sender == admin0XB, "Access Denied!");
@@ -207,32 +202,6 @@ contract CONTRewardManagement is Initializable {
                 lastUpdated: block.timestamp,
                 isFeeContract: _isFeeCont
             });
-        }
-
-        contOwners.set(account, _contsOfUser[account].length);
-        totalContsCreated += contNames.length;
-        _totalContsPerType[_cType] += contNames.length;
-    }
-
-    function createContsOldForTest(
-        address account,
-        string[] memory contNames,
-        ContType _cType
-    ) external {
-        _contsOfUser[account];
-        uint256 currentAPR = this.currentRewardAPRPerNewCont(_cType);
-
-        for (uint256 i = 0; i < contNames.length; i++) {
-            _contsOfUser[account].push(
-                ContEntity({
-                    name: contNames[i],
-                    creationTime: block.timestamp,
-                    lastUpdateTime: block.timestamp,
-                    buyPrice: contPrice[_cType],
-                    initialAPR: currentAPR,
-                    cType: _cType
-                })
-            );
         }
 
         contOwners.set(account, _contsOfUser[account].length);
