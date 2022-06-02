@@ -18,12 +18,12 @@ contract CONTRewardManagement is Initializable {
     // ----- Constants -----
     uint256 private constant UNIX_YEAR = 31_536_000;
     uint256 private constant HUNDRED_PERCENT = 100_000_000;
-    uint256 private constant ADDITION_TIME_FOR_OLD = 1 hours;
-    uint256 private constant ADDITION_TIME_FOR_NEW = 3 hours;
-    uint256 public constant ONE_MONTH = 3 hours;
-    uint256 public constant TWO_MONTH = 6 hours;
-    uint256 public constant THREE_MONTH = 9 hours;
-    uint256 public constant FOUR_MONTH = 12 hours;
+    uint256 private constant ADDITION_TIME_FOR_OLD = 10 days;
+    uint256 private constant ADDITION_TIME_FOR_NEW = 30 days;
+    uint256 public constant ONE_MONTH = 30 days;
+    uint256 public constant TWO_MONTH = 60 days;
+    uint256 public constant THREE_MONTH = 90 days;
+    uint256 public constant FOUR_MONTH = 120 days;
     uint256 public constant MAXUINT256 = type(uint256).max;
 
     // ----- Cont Structs -----
@@ -101,6 +101,11 @@ contract CONTRewardManagement is Initializable {
 
     // ----- Events -----
     event BreakevenChanged(ContType _cType, uint256 delta);
+    event ExtendContract(uint256 index, uint256 time);
+    event ChangeMonthFee(ContType _cType, uint256 fee);
+    event ChangeFeeToken(address feeToken);
+    event ChangeMonthFeeState(bool status);
+    event WithdrawFeeToken(address user, uint256 amount);
 
     // ----- Constructor -----
     function initialize(
@@ -302,6 +307,7 @@ contract CONTRewardManagement is Initializable {
             additionData.expireIn += time[i];
             additionData.lastUpdated = block.timestamp;
             additionalDataContract[msg.sender][indexes[i]] = additionData;
+            emit ExtendContract(indexes[i], time[i]);
         }
     }
 
@@ -347,6 +353,7 @@ contract CONTRewardManagement is Initializable {
 
     function changeFeeInMonth(ContType _cType, uint256 _newFee) external onlyAuthorities {
         feeInMonth[_cType] = _newFee;
+        emit ChangeMonthFee(_cType, _newFee);
     }
 
     /**
@@ -367,6 +374,7 @@ contract CONTRewardManagement is Initializable {
 
     function changeFeeToken(address _feeToken) external onlyAuthorities {
         feeToken = IERC20(_feeToken);
+        emit ChangeFeeToken(_feeToken);
     }
 
     function changeMonthFeeState(bool _status) external onlyAuthorities {
@@ -374,11 +382,13 @@ contract CONTRewardManagement is Initializable {
         isMonthFeeActive = _status;
         maxIndexMonthFeeLogs++;
         monthFeeLogs[maxIndexMonthFeeLogs] = MonthFeeLog(block.timestamp, _status);
+        emit ChangeMonthFeeState(_status);
     }
 
     function withdrawFeeToken(address _user) external onlyAuthorities {
         uint256 amount = feeToken.balanceOf(address(this));
         require(feeToken.transfer(_user, amount), "MONTH_FEE_WITHDRAW: INVALID");
+        emit WithdrawFeeToken(_user, amount);
     }
 
     function _updateCont(address account, uint256 _contIndex) private {
