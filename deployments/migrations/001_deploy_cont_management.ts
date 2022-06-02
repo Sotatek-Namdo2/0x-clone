@@ -24,8 +24,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment): Pr
   const cashoutTimeout = 1;
   // const usdc = process.env.USDC_TOKEN_ADDRESS;
   // const decreaseFeePercent = 10000000;
-  // const tesseractFee = utils.parseEther("4");
-  // const cubeFee = utils.parseEther("3");
+  // const tesseractFee = utils.parseEther("10");
+  // const cubeFee = utils.parseEther("5");
+  // const squareFee = utils.parseEther("2");
   await deploy("CONTRewardManagement", {
     from: deployer,
     proxy: {
